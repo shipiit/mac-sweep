@@ -4,3 +4,7 @@ build/
 *.xcodeproj
 .DS_Store
 .claude/
+
+# Python tooling output
+__pycache__/
+*.py[cod]

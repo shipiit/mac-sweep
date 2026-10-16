@@ -1,0 +1,39 @@
+name: Bug report
+description: Report incorrect behavior with a reproducible example.
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 'For security vulnerabilities, follow SECURITY.md. Use synthetic or redacted diagnostics; exclude credentials and private conversation contents.'
+  - type: input
+    id: version
+    attributes:
+      label: MacSweep and macOS versions
+      placeholder: 'MacSweep v1.x · macOS 15.x · Apple Silicon'
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the relevant page, action, and a safe minimal example.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence and checks
+      description: Screenshots, logs, permission state, and steps already tried. Remove sensitive details.

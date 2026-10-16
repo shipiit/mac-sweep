@@ -6,7 +6,7 @@
 
 SwiftUI · macOS 15+ · Apple Silicon · no third-party dependencies · everything stays on your Mac
 
-[**⬇ Download the latest .dmg**](https://github.com/shipiit/mac-sweep/releases/latest)
+[**Explore the website**](https://shipiit.github.io/mac-sweep-website/) · [**⬇ Download the latest .dmg**](https://github.com/shipiit/mac-sweep/releases/latest)
 
 ![Version](https://img.shields.io/github/v/release/shipiit/mac-sweep?label=version) ![macOS](https://img.shields.io/badge/macOS-15%2B-black) ![Swift](https://img.shields.io/badge/Swift-6-orange) ![Tests](https://img.shields.io/badge/tests-510%2B-brightgreen) ![Dependencies](https://img.shields.io/badge/dependencies-0-blue)
 
@@ -187,3 +187,7 @@ python3 -m http.server 4173 --directory website/dist --bind 127.0.0.1
 ```
 
 Open http://127.0.0.1:4173. The site includes a detailed capability guide, sample-data UI demonstrations, developer and AI tools, privacy explanations, and installation help.
+
+## Contributing and security
+
+Use the [bug and feature forms](https://github.com/shipiit/mac-sweep/issues/new/choose) for reports and proposals. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request and [SECURITY.md](SECURITY.md) for private vulnerability reporting. Repository ownership and the prepared branch rules are described in [repository administration](.github/REPOSITORY_ADMIN.md).

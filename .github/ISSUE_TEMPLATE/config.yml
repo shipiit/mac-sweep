@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/shipiit/mac-sweep/blob/main/SECURITY.md
+    about: Follow the private reporting instructions; do not disclose vulnerabilities in public issues.
+  - name: Product guide and interactive examples
+    url: https://shipiit.github.io/mac-sweep-website/features.html
+    about: Explore capabilities, setup requirements, terminology, and illustrative workflows.

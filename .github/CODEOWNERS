@@ -1,0 +1,8 @@
+# Review ownership is separate from GitHub access permissions.
+* @iamrraj
+
+# Keep repository governance and automation under maintainer review.
+/.github/ @iamrraj
+/scripts/ @iamrraj
+/SECURITY.md @iamrraj
+/CONTRIBUTING.md @iamrraj
