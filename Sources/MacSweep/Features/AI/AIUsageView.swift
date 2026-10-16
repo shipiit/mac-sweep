@@ -35,11 +35,6 @@ struct AIUsageView: View {
                     }
                     .frame(minHeight: 520)
                 } else {
-                    Picker("Section", selection: $tab) { ForEach(AITab.allCases) { Text($0.rawValue).tag($0) } }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: 460)
-                        .frame(maxWidth: .infinity)
                     ServiceStatusBadges(model: model, providers: provider.map { [$0] } ?? AIProvider.allCases)
                     controls(model)
                     switch tab {
@@ -71,6 +66,7 @@ struct AIUsageView: View {
             .padding(20)
         }
         .navigationTitle("AI Usage")
+        .sectionTabs(AITab.allCases, selection: $tab, title: \.rawValue)
         .navigationSubtitle(model.lastRefreshed.map { "Updated \(Format.relative($0))" } ?? "Claude Code · Codex")
         .overlay(alignment: .bottom) {
             if model.isRefreshing, let progress = model.progress, progress.filesTotal > 20 {

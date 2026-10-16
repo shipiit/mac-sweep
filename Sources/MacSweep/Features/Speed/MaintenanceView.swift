@@ -40,7 +40,6 @@ struct MaintenanceView: View {
                 .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.separator.opacity(0.5)))
             }
             .padding(24)
-            .frame(maxWidth: 980)
             .frame(maxWidth: .infinity)
         }
         .navigationTitle("Maintenance")

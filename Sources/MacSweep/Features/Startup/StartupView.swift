@@ -17,13 +17,6 @@ struct StartupView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Picker("Show", selection: $tab) {
-                ForEach(StartupTab.allCases) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
-            .padding(.vertical, 10)
             switch tab {
             case .loginItems:
                 LoginItemsView().navigationTitle("Startup Items")
@@ -31,12 +24,18 @@ struct StartupView: View {
                 agentsView
             }
         }
+        .sectionTabs(StartupTab.allCases, selection: $tab, title: \.rawValue)
     }
 
     private var agentsView: some View {
         @Bindable var model = app.startup
         let rows = visible(model.items)
-        return Group {
+        return VStack(spacing: 0) {
+            Picker("Scope", selection: $scope) {
+                Text("All").tag(LaunchScope?.none)
+                ForEach(LaunchScope.allCases, id: \.self) { Text($0.rawValue).tag(LaunchScope?.some($0)) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize().padding(.vertical, 8)
             if rows.isEmpty && !model.isLoading {
                 ContentUnavailableView("No startup items", systemImage: "power", description: Text("No launch agents or daemons match."))
             } else {
@@ -74,13 +73,6 @@ struct StartupView: View {
         .navigationSubtitle("\(model.items.count) launch agents & daemons")
         .searchable(text: $search, prompt: "Label or program")
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                Picker("Scope", selection: $scope) {
-                    Text("All").tag(LaunchScope?.none)
-                    ForEach(LaunchScope.allCases, id: \.self) { Text($0.rawValue).tag(LaunchScope?.some($0)) }
-                }
-                .pickerStyle(.segmented)
-            }
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Login Items", systemImage: "person.crop.circle.badge.checkmark") {
                     FileActions.open(url: Permissions.loginItemsSettingsURL)

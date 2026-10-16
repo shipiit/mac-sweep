@@ -8,6 +8,7 @@ struct SettingsView: View {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             AppearanceSettings().tabItem { Label("Appearance", systemImage: "paintpalette") }
             DashboardSettings().tabItem { Label("Dashboard", systemImage: "square.grid.2x2") }
+            SidebarSettings().tabItem { Label("Sidebar", systemImage: "sidebar.left") }
             AISettings().tabItem { Label("AI", systemImage: "flame") }
             PrivacySettings().tabItem { Label("Privacy", systemImage: "hand.raised") }
             ShortcutsSettings().tabItem { Label("Shortcuts", systemImage: "keyboard") }

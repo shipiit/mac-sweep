@@ -13,8 +13,6 @@ struct InsightsTimelineView: View {
         let spikes = TimelineAggregator.spikes(points)
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Picker("Range", selection: $range) { ForEach(TimelineRange.allCases) { Text($0.title).tag($0) } }
-                    .pickerStyle(.segmented).labelsHidden().frame(width: 260)
                 if points.isEmpty {
                     ModuleIntro(title: "Timeline", subtitle: "See what your Mac was doing at any time in the last 14 days.",
                                 symbol: "chart.xyaxis.line", tint: accent,
@@ -33,6 +31,8 @@ struct InsightsTimelineView: View {
             .padding(20)
         }
         .navigationTitle("Timeline")
+        .navigationSubtitle("CPU, memory, disk and network · a point every 5 minutes")
+        .sectionTabs(TimelineRange.allCases, selection: $range, title: \.title)
     }
 
     private func chart(_ title: String, _ points: [TimelinePoint], value: @escaping (TimelinePoint) -> Double, unit: String, color: Color) -> some View {

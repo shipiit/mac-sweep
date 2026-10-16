@@ -11,13 +11,6 @@ final class DuplicatesModel {
         case photos = "Similar Photos"
         case archive = "Archive & Offload"
         var id: String { rawValue }
-        var symbol: String {
-            switch self {
-            case .exact: "doc.on.doc"
-            case .photos: "photo.on.rectangle.angled"
-            case .archive: "archivebox"
-            }
-        }
     }
 
     var mode: Mode = .exact

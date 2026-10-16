@@ -73,6 +73,8 @@ enum SettingsKeys {
     static let claudePlanLimits = "claudePlanLimits"
     /// Which tool's limits the menu bar tile and notch show.
     static let aiDefaultTool = "aiDefaultTool"
+    /// Comma-separated sidebar pages the user turned off.
+    static let hiddenSections = "hiddenSections"
 }
 
 enum DashboardLayout {

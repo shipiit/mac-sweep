@@ -8,12 +8,6 @@ struct DeveloperHubView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    PillTabs(tabs: DevTab.allCases, selection: $tab, title: \.rawValue, symbol: \.symbol, badge: badge)
-                    Spacer()
-                    Button { Task { await model.refresh(tab) } } label: { Image(systemName: "arrow.clockwise") }
-                        .help("Refresh").accessibilityLabel("Refresh").disabled(model.state(tab).isLoading)
-                }
                 if let busy = model.busy {
                     Label("\(busy)…", systemImage: "hourglass").font(.callout).foregroundStyle(.secondary)
                 }
@@ -26,6 +20,14 @@ struct DeveloperHubView: View {
             .padding(20)
         }
         .navigationTitle("Developer")
+        .navigationSubtitle(subtitle)
+        .sectionTabs(DevTab.allCases, selection: $tab, title: \.rawValue)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { Task { await model.refresh(tab) } } label: { Label("Refresh", systemImage: "arrow.clockwise") }
+                    .help("Refresh \(tab.rawValue)").disabled(model.state(tab).isLoading)
+            }
+        }
         .task(id: tab) { await model.loadIfNeeded(tab) }
         .alert(model.confirmation?.action.title ?? "", isPresented: Binding(get: { model.confirmation != nil }, set: { if !$0 { model.confirmation = nil } }),
                presenting: model.confirmation) { confirmation in
@@ -35,6 +37,10 @@ struct DeveloperHubView: View {
         .alert("Developer", isPresented: Binding(get: { model.notice != nil }, set: { if !$0 { model.notice = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(model.notice ?? "") }
+    }
+
+    private var subtitle: String {
+        badge(tab).map { "\(tab.rawValue) · \($0)" } ?? "Docker, Homebrew, runtimes, Xcode, node_modules and services"
     }
 
     private func badge(_ tab: DevTab) -> String? {
@@ -112,7 +118,7 @@ private struct DevOverview: View {
         case .homebrew: return model.brew.map { "\($0.outdated.count) outdated" } ?? "—"
         case .runtimes: return "\(model.runtimes.count) versions"
         case .xcode: return Format.bytes(model.xcodeLocations.reduce(0) { $0 + ($1.size ?? 0) })
-        case .nodeModules: return Format.bytes(model.nodeProjects.reduce(0) { $0 + $1.totalSize })
+        case .nodeModules: return model.state(.nodeModules) == .idle ? "Not scanned yet" : Format.bytes(model.nodeProjects.reduce(0) { $0 + $1.totalSize })
         case .services: return "\(model.services.filter { $0.state == .running }.count) running"
         case .overview: return ""
         }
@@ -126,7 +132,7 @@ private struct DevOverview: View {
         case .homebrew: return model.brew.map { "\(Format.bytes($0.cleanup.reclaimable)) to clean up" } ?? "Outdated packages and old downloads"
         case .runtimes: return "Node, Python and Ruby installs · \(model.globalPackages.count) global packages"
         case .xcode: return "DerivedData, archives, device support · \(model.simulators.count) simulators"
-        case .nodeModules: return "\(model.nodeProjects.count) projects"
+        case .nodeModules: return model.state(.nodeModules) == .idle ? "Open to scan every project in your home folder" : "\(model.nodeProjects.count) projects"
         case .services: return "\(model.services.count) dev services (Postgres, Redis…)"
         case .overview: return ""
         }

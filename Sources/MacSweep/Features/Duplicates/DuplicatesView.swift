@@ -8,16 +8,6 @@ struct DuplicatesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    PillTabs(tabs: DuplicatesModel.Mode.allCases, selection: $model.mode, title: \.rawValue, symbol: \.symbol, badge: badge)
-                        .disabled(model.isWorking)
-                    Spacer()
-                    if hasResult {
-                        Button { model.isWorking ? model.cancel() : model.scan() } label: {
-                            Label(model.isWorking ? "Stop" : "Scan Again", systemImage: model.isWorking ? "stop.fill" : "arrow.clockwise")
-                        }
-                    }
-                }
                 if let message = model.message {
                     Label(message, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
                 }
@@ -35,6 +25,15 @@ struct DuplicatesView: View {
             .padding(20)
         }
         .navigationTitle("Duplicates & Archive")
+        .navigationSubtitle(badge(model.mode).map { "\(model.mode.rawValue) · \($0)" } ?? model.mode.rawValue)
+        .sectionTabs(DuplicatesModel.Mode.allCases, selection: $model.mode, title: \.rawValue)
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button { model.isWorking ? model.cancel() : model.scan() } label: {
+                    Label(model.isWorking ? "Stop" : hasResult ? "Scan Again" : "Scan", systemImage: model.isWorking ? "stop.fill" : "arrow.clockwise")
+                }
+            }
+        }
     }
 
     private func badge(_ mode: DuplicatesModel.Mode) -> String? {

@@ -5,23 +5,25 @@ struct RootView: View {
     @Environment(AppModel.self) private var app
     @AppStorage(SettingsKeys.backgroundStyle) private var backgroundStyle: BackgroundStyle = .plain
     /// Comma-separated titles of folded sidebar groups.
+    @AppStorage(SettingsKeys.hiddenSections) private var hiddenRaw = ""
     @AppStorage("sidebarCollapsed") private var collapsedRaw = "Protection,Performance,Developer,Applications,Insights"
 
     var body: some View {
         @Bindable var app = app
         NavigationSplitView {
             List {
-                ForEach(SidebarSection.groups, id: \.title) { group in
-                    if group.title.isEmpty {
-                        rows(group.sections)
+                let hidden = SidebarVisibility.hidden(hiddenRaw)
+                ForEach(SidebarSection.groups.map { ($0.title, $0.sections.filter { !hidden.contains($0) }) }.filter { !$0.1.isEmpty }, id: \.0) { title, sections in
+                    if title.isEmpty {
+                        rows(sections)
                     } else {
-                        Section(isExpanded: expanded(group.title)) {
-                            rows(group.sections)
+                        Section(isExpanded: expanded(title)) {
+                            rows(sections)
                         } header: {
                             HStack {
-                                Text(group.title)
-                                if !expanded(group.title).wrappedValue {
-                                    Text("\(group.sections.count)").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
+                                Text(title)
+                                if !expanded(title).wrappedValue {
+                                    Text("\(sections.count)").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
                                 }
                             }
                         }
@@ -84,6 +86,11 @@ struct RootView: View {
         case .alerts: AlertsView()
         case .duplicates: DuplicatesView()
         case .developer: DeveloperHubView()
+        case .malware: MalwareScanView()
+        case .permissions: PrivacyPermissionsView()
+        case .network: NetworkMonitorView()
+        case .sharing: SharingAuditView()
+        case .backups: BackupStatusView()
         case .timeline: InsightsTimelineView()
         case .growth: GrowthView()
         case .storage: StorageView()

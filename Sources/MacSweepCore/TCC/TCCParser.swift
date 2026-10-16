@@ -60,7 +60,11 @@ public struct TCCEntry: Identifiable, Sendable, Equatable {
     public let target: String?
     public let lastModified: Date?
 
-    public var id: String { [database.rawValue, serviceKey, client.raw, target ?? ""].joined(separator: "|") }
+    /// Rows can differ only in fields the parser folds to nil, so the authorization and timestamp join the key.
+    public var id: String {
+        [database.rawValue, serviceKey, client.raw, target ?? "", authorization.title, lastModified.map { "\($0.timeIntervalSince1970)" } ?? ""]
+            .joined(separator: "|")
+    }
 
     public var service: TCCService { TCCServiceCatalog.service(for: serviceKey) ?? TCCServiceCatalog.fallback(for: serviceKey) }
 

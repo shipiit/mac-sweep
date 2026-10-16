@@ -22,7 +22,11 @@ final class AppModel {
     let usage = UsageModel()
     let ai = AIUsageModel()
     let insights = InsightsCenter()
-    var section: SidebarSection? = .smartScan
+    let threats = ThreatCenter()
+    /// Reopens on the page used last (`-lastSection "Developer"` on the command line also works).
+    var section: SidebarSection? = UserDefaults.standard.string(forKey: "lastSection").flatMap(SidebarSection.init(rawValue:)) ?? .smartScan {
+        didSet { UserDefaults.standard.set(section?.rawValue, forKey: "lastSection") }
+    }
     private(set) var hasFullDiskAccess = Permissions.hasFullDiskAccess()
     /// Set by the menu bar label, which lives in a scene and can open windows.
     @ObservationIgnored var openMainWindow: (() -> Void)?
@@ -39,6 +43,7 @@ final class AppModel {
         usage.start()
         ai.start()
         insights.start(app: self)
+        threats.start()
         Task { [security] in await security.run() }
         processes.start()
         portLoop = Task { [ports] in
@@ -82,7 +87,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     case trash = "Trash Bins"
     case shredder = "Shredder"
     case privacy = "Privacy"
-    case security = "Malware & Security"
+    case security = "Security Audit"
     case extensions = "Extensions"
     case optimization = "Optimization"
     case maintenance = "Maintenance"
@@ -96,6 +101,11 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     case alerts = "Smart Alerts"
     case duplicates = "Duplicates & Archive"
     case developer = "Developer"
+    case malware = "Malware Scan"
+    case permissions = "App Permissions"
+    case network = "Network Monitor"
+    case sharing = "Sharing & Wi-Fi"
+    case backups = "Backups"
     case timeline = "Timeline"
     case growth = "What Grew"
 
@@ -111,6 +121,11 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .alerts: "bell.badge"
         case .duplicates: "doc.on.doc"
         case .developer: "hammer"
+        case .malware: "shield.checkered"
+        case .permissions: "hand.raised.square"
+        case .network: "point.3.connected.trianglepath.dotted"
+        case .sharing: "person.2.wave.2"
+        case .backups: "clock.arrow.circlepath"
         case .timeline: "chart.xyaxis.line"
         case .growth: "chart.bar.doc.horizontal"
         case .storage: "internaldrive"
@@ -134,7 +149,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     static let groups: [(title: String, sections: [SidebarSection])] = [
         ("", [.smartScan, .overview, .ai]),
         ("Cleanup", [.storage, .files, .duplicates, .mail, .trash, .shredder, .privacy]),
-        ("Protection", [.security, .extensions]),
+        ("Protection", [.malware, .security, .permissions, .network, .sharing, .backups, .extensions]),
         ("Performance", [.optimization, .maintenance, .processes, .startup]),
         ("Developer", [.developer, .ports]),
         ("Applications", [.uninstaller, .updater, .usage]),
