@@ -21,11 +21,11 @@ Do not run cleanup or destructive operations against another person's data to de
 
 ## Review and repository controls
 
-`main` is the default branch; the prepared rules also cover `master` if created. The intended branch policy restricts updates to `@iamrraj`. Contributors submit pull requests for the maintainer to review and merge. The maintainer is an explicit bypass actor for update/review rules so a solo maintainer is not locked out by self-review requirements. Separate history rules block force pushes and protected-branch deletion without a bypass.
+`main` is the default branch; the active rules also cover `master` if created. The active branch policy restricts updates to `@iamrraj`. Contributors submit pull requests for the maintainer to review and merge. The maintainer is an explicit bypass actor for update/review rules so a solo maintainer is not locked out by self-review requirements. Separate history rules block force pushes and protected-branch deletion without a bypass.
 
 CODEOWNERS declares review ownership; it does not itself grant write access or enforce branch protection. Repository administrators can edit repository rules, so admin membership remains a trusted role.
 
-GitHub Free cannot enforce these rules while the app repository is private. See [repository administration](.github/REPOSITORY_ADMIN.md) for the activation and verification procedure.
+The repository is public and the rules are active. GitHub Free cannot enforce these rules if it becomes private again. See [repository administration](.github/REPOSITORY_ADMIN.md) for the verified rules and administration procedure.
 
 ## Conduct
 

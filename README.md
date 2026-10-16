@@ -190,4 +190,4 @@ Open http://127.0.0.1:4173. The site includes a detailed capability guide, sampl
 
 ## Contributing and security
 
-Use the [bug and feature forms](https://github.com/shipiit/mac-sweep/issues/new/choose) for reports and proposals. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request and [SECURITY.md](SECURITY.md) for private vulnerability reporting. Repository ownership and the prepared branch rules are described in [repository administration](.github/REPOSITORY_ADMIN.md).
+Use the [bug and feature forms](https://github.com/shipiit/mac-sweep/issues/new/choose) for reports and proposals. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request and [SECURITY.md](SECURITY.md) for private vulnerability reporting. Repository ownership and the active branch rules are described in [repository administration](.github/REPOSITORY_ADMIN.md).
