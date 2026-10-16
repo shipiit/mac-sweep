@@ -19,14 +19,21 @@ final class AIUsageModel {
 
     @ObservationIgnored private let store = AIUsageStore.standard
     @ObservationIgnored private var loop: Task<Void, Never>?
+    @ObservationIgnored private var watcher: DirectoryWatcher?
+    /// A change arrived while a refresh was running; run once more afterwards.
+    @ObservationIgnored private var isRefreshQueued = false
 
     init() {
         index = AIUsageStore.standard.load()
     }
 
-    /// Re-indexes changed transcripts every 2 minutes in the background; unchanged files cost nothing.
+    /// Re-indexes when transcripts change (within ~2 s) and every 2 minutes as a fallback; only appended bytes are read.
     func start() {
         guard loop == nil else { return }
+        let sources = AIUsageSources()
+        watcher = DirectoryWatcher(paths: [sources.claudeRoot, sources.codexRoot], latency: 3) { [weak self] in
+            Task { await self?.refresh() }
+        }
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.refresh()
@@ -67,9 +74,18 @@ final class AIUsageModel {
     }
 
     func refresh() async {
-        guard !isRefreshing else { return }
+        guard !isRefreshing else {
+            isRefreshQueued = true
+            return
+        }
         isRefreshing = true
-        defer { isRefreshing = false }
+        defer {
+            isRefreshing = false
+            if isRefreshQueued {
+                isRefreshQueued = false
+                Task { await refresh() }
+            }
+        }
         let current = index
         let store = store
         let box = ProgressBox()

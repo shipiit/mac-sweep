@@ -16,28 +16,71 @@ public struct ScanStore: Sendable {
         return ScanStore(url: base.appendingPathComponent("MacSweep/last-scan.plist"))
     }
 
+    /// The scan that the current one replaced, kept so "what grew" can compare the two.
+    public var previousURL: URL { sibling("previous") }
+    /// Holds the current scan's finish time so a save can tell a fresh scan from a re-save of the
+    /// same one (e.g. after cleanup) without decoding the whole tree.
+    var stampURL: URL { sibling("stamp") }
+
+    private func sibling(_ suffix: String) -> URL {
+        let base = url.deletingPathExtension().lastPathComponent
+        let ext = url.pathExtension.isEmpty ? "plist" : url.pathExtension
+        return url.deletingLastPathComponent().appendingPathComponent("\(base)-\(suffix).\(ext)")
+    }
+
+    /// Saves the scan. A different scan (new `finishedAt`) moves the one on disk to `previousURL`;
+    /// re-saving the same scan just overwrites it so the previous scan stays a genuine earlier scan.
     public func save(_ result: ScanResult) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let manager = FileManager.default
+        try manager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         let encoder = PropertyListEncoder()
         encoder.outputFormat = .binary
-        try encoder.encode(result).write(to: url, options: .atomic)
+        let data = try encoder.encode(result)
+        if manager.fileExists(atPath: url.path), storedFinishedAt() != result.finishedAt {
+            try? manager.removeItem(at: previousURL)
+            try manager.moveItem(at: url, to: previousURL)
+        }
+        try data.write(to: url, options: .atomic)
+        try encoder.encode(ScanStamp(finishedAt: result.finishedAt)).write(to: stampURL, options: .atomic)
         Self.log.info("saved scan of \(result.root.path, privacy: .public)")
     }
 
     /// Nil when there is no saved scan or it can't be read (e.g. written by an older format).
     public func load() -> ScanResult? {
+        Self.decode(at: url)
+    }
+
+    /// The scan before the current one; nil when there is none or it can't be read.
+    public func loadPrevious() -> ScanResult? {
+        Self.decode(at: previousURL)
+    }
+
+    public func clear() {
+        for file in [url, previousURL, stampURL] { try? FileManager.default.removeItem(at: file) }
+    }
+
+    /// Scans saved before the stamp existed fall back to decoding the stored scan once.
+    private func storedFinishedAt() -> Date? {
+        if let data = try? Data(contentsOf: stampURL),
+           let stamp = try? PropertyListDecoder().decode(ScanStamp.self, from: data) {
+            return stamp.finishedAt
+        }
+        return Self.decode(at: url)?.finishedAt
+    }
+
+    private static func decode(at url: URL) -> ScanResult? {
         guard let data = try? Data(contentsOf: url) else { return nil }
         do {
             return try PropertyListDecoder().decode(ScanResult.self, from: data)
         } catch {
-            Self.log.warning("discarding unreadable saved scan: \(error.localizedDescription, privacy: .public)")
+            log.warning("discarding unreadable saved scan: \(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
+}
 
-    public func clear() {
-        try? FileManager.default.removeItem(at: url)
-    }
+private struct ScanStamp: Codable {
+    let finishedAt: Date
 }
 
 public enum ScanSchedule: String, CaseIterable, Sendable, Identifiable {

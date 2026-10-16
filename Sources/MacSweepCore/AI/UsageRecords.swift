@@ -57,8 +57,37 @@ public struct FileUsage: Codable, Sendable, Equatable {
     public var titles: [String: String]?
     /// Parser revision that produced this record; older records are re-read when the parser learns new fields.
     public var parserVersion: Int?
+    /// Claude only: bytes already read and the last de-duplication keys, so appends are read incrementally.
+    public var offset: UInt64?
+    public var recentKeys: [String]?
 
     public static let currentParserVersion = 2
+
+    /// Adds an appended chunk: sums matching entries, keeps only the last day of events.
+    func appending(_ chunk: TranscriptParsers.ClaudeChunk, size: UInt64, modified: Date, now: Date) -> FileUsage {
+        var merged: [String: UsageEntry] = [:]
+        for entry in entries + chunk.entries {
+            let key = [entry.day, entry.model, entry.project, entry.session].joined(separator: "|")
+            if var existing = merged[key] {
+                existing.totals = existing.totals + entry.totals
+                existing.first = min(existing.first, entry.first)
+                existing.last = max(existing.last, entry.last)
+                merged[key] = existing
+            } else {
+                merged[key] = entry
+            }
+        }
+        let cutoff = now.addingTimeInterval(-24 * 3_600)
+        var copy = self
+        copy.size = size
+        copy.modified = modified
+        copy.entries = merged.values.sorted { $0.first < $1.first }
+        copy.events = (events + chunk.events).filter { $0.time >= cutoff }
+        copy.titles = (titles ?? [:]).merging(chunk.titles) { _, new in new }
+        copy.offset = chunk.endOffset
+        copy.recentKeys = chunk.recentKeys
+        return copy
+    }
 }
 
 enum UsageTime {

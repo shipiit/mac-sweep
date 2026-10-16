@@ -1,4 +1,4 @@
-.PHONY: build test app run install clean
+.PHONY: build test app dmg run install clean
 
 build:
 	swift build
@@ -8,6 +8,9 @@ test:
 
 app:
 	bash scripts/make-app.sh
+
+dmg:
+	bash scripts/make-dmg.sh
 
 run: app
 	open build/MacSweep.app

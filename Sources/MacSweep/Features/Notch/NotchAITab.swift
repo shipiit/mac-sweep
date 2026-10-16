@@ -13,11 +13,27 @@ struct NotchAITab: View {
                 Text("Today").foregroundStyle(.white.opacity(0.6))
                 Text(TokenFormat.cost(ai.todayCost)).font(.system(size: 26, weight: .semibold, design: .rounded)).monospacedDigit()
                 Text("\(TokenFormat.compact(ai.todayTotals.total)) tokens").foregroundStyle(.white.opacity(0.6))
+                if let updated = ai.lastRefreshed {
+                    Text("Updated \(Format.relative(updated))").foregroundStyle(.white.opacity(0.4))
+                }
                 if let block = ai.claudeBlock, block.isActive {
                     Text("\(TokenFormat.compact(Int(block.burnPerHour)))/h burn").foregroundStyle(.orange)
                 }
                 Spacer(minLength: 0)
-                Button("Details") { open(.ai) }.buttonStyle(.link)
+                HStack(spacing: 10) {
+                    Button {
+                        Task {
+                            await ai.refresh()
+                            await ai.refreshPlan(force: true)
+                        }
+                    } label: {
+                        Label(ai.isRefreshing ? "Updating" : "Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.8))
+                    .disabled(ai.isRefreshing)
+                    Button("Details") { open(.ai) }.buttonStyle(.link)
+                }
             }
             .frame(width: 130, alignment: .leading)
             ForEach(AIProvider.allCases) { provider in

@@ -13,18 +13,37 @@ public enum TranscriptParsers {
     /// Also collects session titles: `custom-title` (set with /rename) wins over `ai-title`.
     public static func parseClaudeWithTitles(path: String, now: Date = Date(), calendar: Calendar = .current)
         -> ([UsageEntry], [UsageEvent], [String: String]) {
+        let result = parseClaude(path: path, from: 0, recentKeys: [], now: now, calendar: calendar)
+        return (result.entries, result.events, result.titles)
+    }
+
+    public struct ClaudeChunk: Sendable {
+        public var entries: [UsageEntry]
+        public var events: [UsageEvent]
+        public var titles: [String: String]
+        /// Where the next incremental read starts.
+        public var endOffset: UInt64
+        /// Last de-duplication keys, carried over so a message split across reads isn't counted twice.
+        public var recentKeys: [String]
+    }
+
+    /// Reads from `offset` (0 = whole file). Streaming duplicates sit next to each other, so the last few
+    /// hundred keys are enough to de-duplicate across reads.
+    public static func parseClaude(path: String, from offset: UInt64, recentKeys: [String], now: Date = Date(),
+                                   calendar: Calendar = .current) -> ClaudeChunk {
         var accumulator = EntryAccumulator(recentCutoff: now.addingTimeInterval(-24 * 3_600))
-        var seen = Set<String>()
+        var seen = Set(recentKeys)
+        var order = recentKeys
         var aiTitles: [String: String] = [:]
         var customTitles: [String: String] = [:]
-        LineReader.forEachLine(path: path, containing: Array("-title\"".utf8)) { line in
+        LineReader.forEachLine(path: path, from: offset, containing: Array("-title\"".utf8)) { line in
             guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                   let session = json["sessionId"] as? String else { return }
             if let title = json["customTitle"] as? String, !title.isEmpty { customTitles[session] = title }
             if let title = json["aiTitle"] as? String, !title.isEmpty { aiTitles[session] = title }
         }
         let fallbackProject = ProjectNames.fromClaudeFolder((path as NSString).deletingLastPathComponent)
-        LineReader.forEachLine(path: path, containing: Array("\"usage\"".utf8)) { line in
+        let end = LineReader.forEachLine(path: path, from: offset, containing: Array("\"usage\"".utf8)) { line in
             guard let json = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
                   json["type"] as? String == "assistant",
                   let message = json["message"] as? [String: Any],
@@ -34,6 +53,7 @@ public enum TranscriptParsers {
             else { return }
             let key = (message["id"] as? String ?? "") + ":" + (json["requestId"] as? String ?? "")
             guard key == ":" || seen.insert(key).inserted else { return }
+            if key != ":" { order.append(key) }
             let project = (json["cwd"] as? String).map(ProjectNames.short) ?? fallbackProject
             let session = json["sessionId"] as? String ?? (path as NSString).lastPathComponent
             accumulator.add(provider: .claudeCode, time: time, model: model, project: project, session: session,
@@ -46,7 +66,8 @@ public enum TranscriptParsers {
                                 session: session, totals: advisor, calendar: calendar)
             }
         }
-        return (accumulator.all, accumulator.events, aiTitles.merging(customTitles) { _, custom in custom })
+        return ClaudeChunk(entries: accumulator.all, events: accumulator.events, titles: aiTitles.merging(customTitles) { _, custom in custom },
+                           endOffset: end, recentKeys: Array(order.suffix(256)))
     }
 
     static func claudeTotals(_ usage: [String: Any]) -> TokenTotals {

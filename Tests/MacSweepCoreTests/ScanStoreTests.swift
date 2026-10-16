@@ -32,6 +32,72 @@ import Testing
     }
 }
 
+@Suite struct ScanStorePreviousTests {
+    func result(size: UInt64, finishedAt seconds: TimeInterval) -> ScanResult {
+        ScanResult(root: Fixtures.dir("/r", [Fixtures.file("/r/f", size: size)]), largeFiles: [], restrictedCount: 0,
+                   duration: 1, finishedAt: Date(timeIntervalSince1970: 1_800_000_000 + seconds))
+    }
+
+    func makeStore() throws -> (ScanStore, String) {
+        let dir = try Fixtures.makeTempDir()
+        return (ScanStore(url: URL(fileURLWithPath: dir + "/last-scan.plist")), dir)
+    }
+
+    @Test func firstSaveHasNoPrevious() throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try store.save(result(size: 1, finishedAt: 0))
+        #expect(store.loadPrevious() == nil)
+        #expect(store.previousURL.lastPathComponent == "last-scan-previous.plist")
+    }
+
+    @Test func newScanRotatesTheOldOne() throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try store.save(result(size: 1, finishedAt: 0))
+        try store.save(result(size: 2, finishedAt: 100))
+        #expect(store.load()?.root.size == 2)
+        #expect(store.loadPrevious()?.root.size == 1)
+        try store.save(result(size: 3, finishedAt: 200))
+        #expect(store.loadPrevious()?.root.size == 2)
+    }
+
+    @Test func resavingTheSameScanKeepsTheRealPrevious() throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try store.save(result(size: 1, finishedAt: 0))
+        try store.save(result(size: 5, finishedAt: 100))
+        // Cleanup re-saves the same scan with files removed.
+        try store.save(result(size: 4, finishedAt: 100))
+        #expect(store.load()?.root.size == 4)
+        #expect(store.loadPrevious()?.root.size == 1)
+    }
+
+    @Test func fileFromBeforeTheStampExistedStillRotatesCorrectly() throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try store.save(result(size: 1, finishedAt: 0))
+        try FileManager.default.removeItem(at: store.stampURL)
+        try store.save(result(size: 1, finishedAt: 0))
+        #expect(store.loadPrevious() == nil, "same scan, decoded without the stamp")
+        try FileManager.default.removeItem(at: store.stampURL)
+        try store.save(result(size: 2, finishedAt: 50))
+        #expect(store.loadPrevious()?.root.size == 1)
+    }
+
+    @Test func corruptPreviousLoadsNilAndClearRemovesEverything() throws {
+        let (store, dir) = try makeStore()
+        defer { try? FileManager.default.removeItem(atPath: dir) }
+        try store.save(result(size: 1, finishedAt: 0))
+        try Data("junk".utf8).write(to: store.previousURL)
+        #expect(store.loadPrevious() == nil)
+        store.clear()
+        for url in [store.url, store.previousURL, store.stampURL] {
+            #expect(!FileManager.default.fileExists(atPath: url.path))
+        }
+    }
+}
+
 @Suite struct ScanScheduleTests {
     var calendar: Calendar {
         var calendar = Calendar(identifier: .gregorian)

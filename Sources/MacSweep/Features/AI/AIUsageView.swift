@@ -73,7 +73,7 @@ struct AIUsageView: View {
         .navigationTitle("AI Usage")
         .navigationSubtitle(model.lastRefreshed.map { "Updated \(Format.relative($0))" } ?? "Claude Code · Codex")
         .overlay(alignment: .bottom) {
-            if model.isRefreshing, let progress = model.progress {
+            if model.isRefreshing, let progress = model.progress, progress.filesTotal > 20 {
                 Label("Reading transcripts \(progress.filesDone) of \(progress.filesTotal)…", systemImage: "doc.text.magnifyingglass")
                     .padding(10).background(.regularMaterial, in: Capsule()).padding()
             }

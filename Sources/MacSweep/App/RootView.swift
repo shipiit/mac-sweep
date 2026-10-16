@@ -4,16 +4,25 @@ import SwiftUI
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @AppStorage(SettingsKeys.backgroundStyle) private var backgroundStyle: BackgroundStyle = .plain
+    /// Comma-separated titles of folded sidebar groups.
+    @AppStorage("sidebarCollapsed") private var collapsedRaw = "Protection,Performance,Developer,Applications,Insights"
 
     var body: some View {
         @Bindable var app = app
         NavigationSplitView {
             List {
                 ForEach(SidebarSection.groups, id: \.title) { group in
-                    Section(group.title) {
-                        ForEach(group.sections) { section in
-                            SidebarRow(section: section, badge: badge(for: section), isSelected: (app.section ?? .smartScan) == section) {
-                                app.section = section
+                    if group.title.isEmpty {
+                        rows(group.sections)
+                    } else {
+                        Section(isExpanded: expanded(group.title)) {
+                            rows(group.sections)
+                        } header: {
+                            HStack {
+                                Text(group.title)
+                                if !expanded(group.title).wrappedValue {
+                                    Text("\(group.sections.count)").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
+                                }
                             }
                         }
                     }
@@ -32,6 +41,25 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             app.refreshPermissions()
         }
+    }
+
+    private func rows(_ sections: [SidebarSection]) -> some View {
+        ForEach(sections) { section in
+            SidebarRow(section: section, badge: badge(for: section), isSelected: (app.section ?? .smartScan) == section) {
+                app.section = section
+            }
+        }
+    }
+
+    /// The group holding the current page always stays open.
+    private func expanded(_ title: String) -> Binding<Bool> {
+        let collapsed = Set(collapsedRaw.split(separator: ",").map(String.init))
+        let holdsSelection = SidebarSection.groups.first { $0.title == title }?.sections.contains(app.section ?? .smartScan) ?? false
+        return Binding(get: { holdsSelection || !collapsed.contains(title) }, set: { isOpen in
+            var next = collapsed
+            if isOpen { next.remove(title) } else { next.insert(title) }
+            collapsedRaw = next.sorted().joined(separator: ",")
+        })
     }
 
     private func badge(for section: SidebarSection) -> String? {
@@ -53,6 +81,11 @@ struct RootView: View {
         case .systemInfo: SystemInfoView()
         case .ai: AIUsageView()
         case .usage: UsageView()
+        case .alerts: AlertsView()
+        case .duplicates: DuplicatesView()
+        case .developer: DeveloperHubView()
+        case .timeline: InsightsTimelineView()
+        case .growth: GrowthView()
         case .storage: StorageView()
         case .files: LargeFilesView()
         case .mail: MailAttachmentsView()

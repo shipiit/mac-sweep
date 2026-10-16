@@ -21,6 +21,7 @@ final class AppModel {
     let addOns = ExtensionsModel()
     let usage = UsageModel()
     let ai = AIUsageModel()
+    let insights = InsightsCenter()
     var section: SidebarSection? = .smartScan
     private(set) var hasFullDiskAccess = Permissions.hasFullDiskAccess()
     /// Set by the menu bar label, which lives in a scene and can open windows.
@@ -37,6 +38,7 @@ final class AppModel {
         system.start()
         usage.start()
         ai.start()
+        insights.start(app: self)
         Task { [security] in await security.run() }
         processes.start()
         portLoop = Task { [ports] in
@@ -91,6 +93,11 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     case updater = "Updater"
     case ai = "AI Usage"
     case usage = "App Usage"
+    case alerts = "Smart Alerts"
+    case duplicates = "Duplicates & Archive"
+    case developer = "Developer"
+    case timeline = "Timeline"
+    case growth = "What Grew"
 
     var id: String { rawValue }
 
@@ -101,6 +108,11 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .systemInfo: "info.circle"
         case .ai: "flame"
         case .usage: "hourglass"
+        case .alerts: "bell.badge"
+        case .duplicates: "doc.on.doc"
+        case .developer: "hammer"
+        case .timeline: "chart.xyaxis.line"
+        case .growth: "chart.bar.doc.horizontal"
         case .storage: "internaldrive"
         case .files: "doc.text.magnifyingglass"
         case .mail: "paperclip"
@@ -120,11 +132,12 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     }
 
     static let groups: [(title: String, sections: [SidebarSection])] = [
-        ("", [.smartScan, .overview, .systemInfo, .ai]),
-        ("Cleanup", [.storage, .mail, .trash, .privacy]),
+        ("", [.smartScan, .overview, .ai]),
+        ("Cleanup", [.storage, .files, .duplicates, .mail, .trash, .shredder, .privacy]),
         ("Protection", [.security, .extensions]),
-        ("Speed", [.optimization, .maintenance, .processes, .ports, .startup]),
+        ("Performance", [.optimization, .maintenance, .processes, .startup]),
+        ("Developer", [.developer, .ports]),
         ("Applications", [.uninstaller, .updater, .usage]),
-        ("Files", [.files, .shredder]),
+        ("Insights", [.systemInfo, .alerts, .timeline, .growth]),
     ]
 }

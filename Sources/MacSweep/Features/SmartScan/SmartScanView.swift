@@ -8,13 +8,28 @@ struct SmartScanView: View {
     @State private var step = ""
     @State private var finishedAt: Date?
     @State private var states: [SmartScanStep: StepState] = [:]
+    @State private var runner = OptimizeRunner()
+    @State private var enabledSteps: Set<OptimizeStep> = [.systemJunk, .maintenance]
+    @State private var trashSize: UInt64 = 0
 
     var body: some View {
         ScrollView {
             VStack(spacing: 26) {
-                hero
-                if isRunning || finishedAt != nil { SmartScanChecklist(states: states) }
-                if isRunning || finishedAt != nil || app.disk.result != nil { results }
+                if !runner.steps.isEmpty {
+                    OptimizeRunView(runner: runner) {
+                        runner.reset()
+                        run()
+                    }
+                } else {
+                    hero
+                    if isRunning || finishedAt != nil { SmartScanChecklist(states: states) }
+                    if finishedAt != nil && !isRunning {
+                        OptimizeReviewCard(enabled: $enabledSteps, junkSize: app.cleanup.total(.safe), trashSize: trashSize) {
+                            Task { await runner.run(enabledSteps, app: app) }
+                        }
+                    }
+                    if isRunning || finishedAt != nil || app.disk.result != nil { results }
+                }
             }
             .padding(30)
             .frame(maxWidth: .infinity)
@@ -135,6 +150,7 @@ struct SmartScanView: View {
             async let apps: Void = app.apps.refresh()
             _ = await (updates, apps)
             states[.apps] = .done("\(app.apps.apps.count) apps · \(app.updates.updates.count) updates · \(app.apps.orphans.count) leftovers")
+            trashSize = await Task.detached(priority: .utility) { TrashBins.list().reduce(0) { $0 + $1.size } }.value
             finishedAt = Date()
             isRunning = false
         }
