@@ -177,3 +177,13 @@ make install   # build and copy to /Applications
 ```
 
 Requires Xcode 16 / Swift 6 toolchain on macOS 15 or later.
+
+## Product website
+
+The animated, five-page showcase lives in [`website/`](website/README.md). Preview it with:
+
+```sh
+python3 -m http.server 4173 --directory website/dist --bind 127.0.0.1
+```
+
+Open http://127.0.0.1:4173. The site includes a detailed capability guide, sample-data UI demonstrations, developer and AI tools, privacy explanations, and installation help.
