@@ -45,21 +45,22 @@ public struct NodeProject: Sendable, Equatable, Identifiable {
 }
 
 public enum NodeModulesFinder {
-    public static func defaultRoots(home: String) -> [String] {
-        ["projects", "Projects", "Developer", "code", "Code", "src", "dev", "work", "repos", "workspace", "Sites",
-         "Documents/GitHub", "Documents/Projects", "Documents/code"].map { home + "/" + $0 }
-    }
+    /// The whole home folder: projects live anywhere. Media, Library and bundles are skipped during the walk.
+    public static func defaultRoots(home: String) -> [String] { [home] }
 
-    static let skippedNames: Set<String> = ["Library", "Applications", "Pods", "DerivedData", "build", "dist", "vendor", "target"]
+    static let skippedNames: Set<String> = ["Library", "Applications", "Pods", "DerivedData", "build", "dist", "vendor", "target",
+                                            "Pictures", "Music", "Movies", "Public", ".Trash"]
+    static let skippedExtensions: Set<String> = ["app", "photoslibrary", "musiclibrary", "tvlibrary", "bundle", "framework", "xcarchive"]
 
     /// Walks each root to `maxDepth`, never descending into hidden folders or into a node_modules it found.
-    public static func find(roots: [String], maxDepth: Int = 5, fileManager: FileManager = .default) -> [String] {
+    public static func find(roots: [String], maxDepth: Int = 6, fileManager: FileManager = .default) -> [String] {
         var found: [String] = []
         var visited = Set<String>()
         func walk(_ directory: String, depth: Int) {
             guard depth <= maxDepth, visited.insert(directory).inserted else { return }
             let names = (try? fileManager.contentsOfDirectory(atPath: directory)) ?? []
-            for name in names where !name.hasPrefix(".") && !skippedNames.contains(name) {
+            for name in names where !name.hasPrefix(".") && !skippedNames.contains(name)
+                && !skippedExtensions.contains((name as NSString).pathExtension.lowercased()) {
                 let path = directory + "/" + name
                 guard isRealDirectory(path, fileManager: fileManager) else { continue }
                 if name == "node_modules" {

@@ -9,17 +9,19 @@ struct DuplicatesView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Picker("Mode", selection: $model.mode) { ForEach(DuplicatesModel.Mode.allCases) { Text($0.rawValue).tag($0) } }
-                        .pickerStyle(.segmented).labelsHidden().frame(width: 420)
+                    PillTabs(tabs: DuplicatesModel.Mode.allCases, selection: $model.mode, title: \.rawValue, symbol: \.symbol, badge: badge)
                         .disabled(model.isWorking)
                     Spacer()
                     if hasResult {
-                        Button(model.isWorking ? "Stop" : "Scan Again") { model.isWorking ? model.cancel() : model.scan() }
+                        Button { model.isWorking ? model.cancel() : model.scan() } label: {
+                            Label(model.isWorking ? "Stop" : "Scan Again", systemImage: model.isWorking ? "stop.fill" : "arrow.clockwise")
+                        }
                     }
                 }
                 if let message = model.message {
                     Label(message, systemImage: "info.circle").font(.callout).foregroundStyle(.secondary)
                 }
+                if !model.isWorking { FolderChips(model: model) }
                 if model.isWorking { ScanProgressCard(progress: model.progress) { model.cancel() } }
                 switch model.mode {
                 case .exact:
@@ -33,6 +35,14 @@ struct DuplicatesView: View {
             .padding(20)
         }
         .navigationTitle("Duplicates & Archive")
+    }
+
+    private func badge(_ mode: DuplicatesModel.Mode) -> String? {
+        switch mode {
+        case .exact: model.duplicates.map { Format.bytes($0.reclaimable) }
+        case .photos: model.photos.map { "\($0.clusters.count)" }
+        case .archive: model.candidates.map { "\($0.count)" }
+        }
     }
 
     private var hasResult: Bool {
@@ -59,6 +69,32 @@ struct DuplicatesView: View {
                            bullets: bullets.map { (symbol: $0.0, title: $0.1, detail: $0.2) },
                            actionTitle: "Scan", isWorking: model.isWorking) { model.scan() }
             .frame(minHeight: 460)
+    }
+}
+
+/// The folders being searched, removable, plus "Add Folder…".
+private struct FolderChips: View {
+    let model: DuplicatesModel
+
+    var body: some View {
+        if model.mode != .archive {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    Text("Searching in").font(.caption).foregroundStyle(.secondary)
+                    ForEach(model.roots, id: \.self) { root in
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder.fill").font(.caption2)
+                            Text(Format.path(root)).font(.caption)
+                            Button { model.roots.removeAll { $0 == root } } label: { Image(systemName: "xmark").font(.caption2) }
+                                .buttonStyle(.plain).accessibilityLabel("Remove \(root)")
+                        }
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(.quaternary.opacity(0.5), in: Capsule())
+                    }
+                    Button("Add Folder…") { model.addRoot() }.controlSize(.small)
+                }
+            }
+        }
     }
 }
 

@@ -69,37 +69,6 @@ struct XcodeSection: View {
     }
 }
 
-struct NodeModulesSection: View {
-    let model: DeveloperModel
-
-    var body: some View {
-        if model.nodeProjects.isEmpty && !model.state(.nodeModules).isLoading {
-            ModuleIntro(title: "node_modules", subtitle: "Every project's dependencies, biggest and stalest first.",
-                        symbol: "folder.badge.gearshape", tint: .green,
-                        bullets: [("clock", "Last opened", "Projects you haven't touched in months are safe to clear; npm install brings them back."),
-                                  ("trash", "Goes to the Trash", "Nothing is deleted outright.")],
-                        actionTitle: "Find node_modules") { Task { await model.refresh(.nodeModules) } }
-                .frame(minHeight: 420)
-        } else {
-            let stale = model.nodeProjects.filter { ProjectActivity.classify(lastModified: $0.lastModified, now: Date()) == .stale }
-            StatStrip {
-                StatTile(title: "Total", value: Format.bytes(model.nodeProjects.reduce(0) { $0 + $1.totalSize }), detail: "\(model.nodeProjects.count) projects")
-                StatTile(title: "Stale projects", value: "\(stale.count)", detail: Format.bytes(stale.reduce(0) { $0 + $1.totalSize }) + " in their node_modules")
-            }
-            DevList(title: "Projects") {
-                ForEach(model.nodeProjects) { project in
-                    let activity = ProjectActivity.classify(lastModified: project.lastModified, now: Date())
-                    DevRow(symbol: activity == .stale ? "moon.zzz" : "folder", title: project.name,
-                           detail: "\(activity.rawValue)" + (project.lastModified.map { " · changed \(Format.relative($0))" } ?? "") + " · \(Format.path(project.root))",
-                           size: project.isMeasured ? project.totalSize : nil, path: project.root) {
-                        model.ask(.trash(paths: project.folders.map(\.path), title: "\(project.name)'s node_modules", size: project.totalSize))
-                    }
-                }
-            }
-        }
-    }
-}
-
 struct ServicesSection: View {
     let model: DeveloperModel
     @State private var logService: DevService?

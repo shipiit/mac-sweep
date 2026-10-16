@@ -9,8 +9,8 @@ struct DeveloperHubView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Picker("Section", selection: $tab) { ForEach(DevTab.allCases) { Label($0.rawValue, systemImage: $0.symbol).tag($0) } }
-                        .pickerStyle(.segmented).labelsHidden()
+                    PillTabs(tabs: DevTab.allCases, selection: $tab, title: \.rawValue, symbol: \.symbol, badge: badge)
+                    Spacer()
                     Button { Task { await model.refresh(tab) } } label: { Image(systemName: "arrow.clockwise") }
                         .help("Refresh").accessibilityLabel("Refresh").disabled(model.state(tab).isLoading)
                 }
@@ -20,9 +20,7 @@ struct DeveloperHubView: View {
                 if case .failed(let message) = model.state(tab) {
                     Label(message, systemImage: "exclamationmark.triangle").foregroundStyle(.orange)
                 }
-                if model.state(tab).isLoading && tab != .overview {
-                    HStack { ProgressView().controlSize(.small); Text("Loading \(tab.rawValue)…").foregroundStyle(.secondary) }
-                }
+                if model.state(tab).isLoading && tab != .overview { DevLoadingCard(tab: tab) }
                 content
             }
             .padding(20)
@@ -39,6 +37,16 @@ struct DeveloperHubView: View {
         } message: { Text(model.notice ?? "") }
     }
 
+    private func badge(_ tab: DevTab) -> String? {
+        switch tab {
+        case .homebrew: model.brew.map { $0.outdated.isEmpty ? nil : "\($0.outdated.count)" } ?? nil
+        case .nodeModules: model.nodeProjects.isEmpty ? nil : "\(model.nodeProjects.count)"
+        case .services: model.services.isEmpty ? nil : "\(model.services.filter { $0.state == .running }.count)/\(model.services.count)"
+        case .runtimes: model.runtimes.isEmpty ? nil : "\(model.runtimes.count)"
+        default: nil
+        }
+    }
+
     @ViewBuilder private var content: some View {
         switch tab {
         case .overview: DevOverview(model: model) { tab = $0 }
@@ -49,6 +57,26 @@ struct DeveloperHubView: View {
         case .nodeModules: NodeModulesSection(model: model)
         case .services: ServicesSection(model: model)
         }
+    }
+}
+
+/// Friendly scanning state with what is being looked at.
+private struct DevLoadingCard: View {
+    let tab: DevTab
+    @Environment(\.appAccent) private var accent
+
+    var body: some View {
+        HStack(spacing: 16) {
+            SpinningRing(isActive: true, lineWidth: 4).frame(width: 34, height: 34)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(tab == .nodeModules ? "Scanning all your projects…" : "Loading \(tab.rawValue)…").font(.headline)
+                Text(tab == .nodeModules ? "Looking through your home folder for node_modules and measuring each one."
+                     : "Asking \(tab.rawValue) for its current state.").foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(18)
+        .background(accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

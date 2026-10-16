@@ -32,13 +32,11 @@ final class DeveloperModel {
 
     func state(_ tab: DevTab) -> DevSectionState { states[tab] ?? .idle }
 
-    /// Loads a tab the first time it's shown. node_modules waits for an explicit scan because it walks folders.
+    /// Loads a tab the first time it's shown; node_modules scans the home folder in the background.
     func loadIfNeeded(_ tab: DevTab) async {
         switch tab {
         case .overview:
             await loadConcurrently(Self.overviewSections.filter { state($0) == .idle })
-        case .nodeModules:
-            return
         default:
             if state(tab) == .idle { await load(tab) }
         }

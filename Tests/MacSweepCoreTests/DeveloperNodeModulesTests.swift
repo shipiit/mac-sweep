@@ -84,8 +84,19 @@ import Testing
         #expect(NodeModulesFinder.lastModified(project: home + "/missing") == nil)
     }
 
-    @Test func defaultRootsLiveInHome() {
-        #expect(NodeModulesFinder.defaultRoots(home: "/Users/t").allSatisfy { $0.hasPrefix("/Users/t/") })
+    @Test func defaultRootIsTheWholeHome() {
+        #expect(NodeModulesFinder.defaultRoots(home: "/Users/t") == ["/Users/t"])
+    }
+
+    @Test func skipsMediaLibraryAndBundles() throws {
+        let home = try Fixtures.makeTempDir()
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        for path in ["anywhere/web/node_modules", "Pictures/x/node_modules", "Library/y/node_modules", "Tool.app/z/node_modules",
+                     "Photos.photoslibrary/node_modules", "a/b/c/d/e/f/node_modules", "a/b/c/d/e/f/g/node_modules"] {
+            try FileManager.default.createDirectory(atPath: home + "/" + path, withIntermediateDirectories: true)
+        }
+        let found = NodeModulesFinder.find(roots: [home]).map { String($0.dropFirst(home.count + 1)) }
+        #expect(found == ["a/b/c/d/e/f/node_modules", "anywhere/web/node_modules"])
     }
 
     @Test func nodeModulesAreTrashableButHomeIsNot() {

@@ -57,29 +57,6 @@ struct DockerSection: View {
     }
 }
 
-struct BrewSection: View {
-    let model: DeveloperModel
-
-    var body: some View {
-        if let brew = model.brew {
-            StatStrip {
-                StatTile(title: "Outdated formulae", value: "\(brew.outdatedFormulae.count)")
-                StatTile(title: "Outdated apps (casks)", value: "\(brew.outdatedCasks.count)")
-                StatTile(title: "Cleanup", value: Format.bytes(brew.cleanup.reclaimable), detail: "\(brew.cleanup.itemCount) old files")
-            }
-            Button("Run brew cleanup (\(Format.bytes(brew.cleanup.reclaimable)))") { model.ask(.brewCleanup(estimate: brew.cleanup.reclaimable)) }
-                .disabled(model.busy != nil || brew.cleanup.reclaimable == 0)
-            DevList(title: "Outdated") {
-                if brew.outdated.isEmpty { Text("Everything is up to date.").foregroundStyle(.secondary) }
-                ForEach(brew.outdated) { update in
-                    DevRow(symbol: update.source == .homebrewCask ? "app" : "terminal", title: update.name,
-                           detail: "\(update.installed) → \(update.available)", size: nil)
-                }
-            }
-        }
-    }
-}
-
 struct RuntimesSection: View {
     let model: DeveloperModel
 
