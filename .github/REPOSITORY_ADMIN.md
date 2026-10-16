@@ -11,7 +11,7 @@ GitHub Free does not support enforcing these branch rules on a private repositor
 - `Maintainer-only protected branch updates`: restrict matching branch creation and updates to the explicit bypass account `@iamrraj` (GitHub user ID 37672067). Other changes must be submitted through pull requests for the maintainer. Review settings include a code-owner review, dismissal of stale approvals, approval of the latest push, resolved review threads, and squash merges. The maintainer bypass is intentional for solo administration and direct authorized pushes.
 - `Protected branch history integrity`: blocks force pushes and branch deletion, with no bypass actor. Admins can still edit or remove rules, so protect admin membership and account security.
 - CODEOWNERS identifies the reviewer but does not grant permissions or activate protections.
-- CI runs Swift builds/tests and website syntax checks. Required-status enforcement should be added only after the check names are confirmed successful in GitHub. Avoid requiring a check that has never run.
+- CI runs Swift builds/tests and website syntax checks. Both passed in GitHub Actions run 38941363932. The prepared update rules require `Swift build and tests` and `Website syntax`, bound to the GitHub Actions integration (15368), with up-to-date branch checks. The explicit maintainer bypass also covers these checks; it is not a guarantee that maintainer pushes are gated by CI.
 
 ## Activate and verify
 

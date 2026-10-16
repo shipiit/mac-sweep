@@ -41,6 +41,23 @@
           "squash"
         ]
       }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": true,
+        "required_status_checks": [
+          {
+            "context": "Swift build and tests",
+            "integration_id": 15368
+          },
+          {
+            "context": "Website syntax",
+            "integration_id": 15368
+          }
+        ]
+      }
     }
   ]
 }

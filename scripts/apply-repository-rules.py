@@ -20,6 +20,17 @@ def api(endpoint, method='GET', payload=None):
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
+def matches(actual, expected):
+    """Allow server-added metadata while preserving every requested rule value."""
+    if isinstance(expected, dict):
+        return isinstance(actual, dict) and all(key in actual and matches(actual[key], value)
+                                                for key, value in expected.items())
+    if isinstance(expected, list):
+        return (isinstance(actual, list) and len(actual) == len(expected)
+                and all(any(matches(candidate, item) for candidate in actual) for item in expected))
+    return actual == expected
+
+
 def main():
     repo = api(f'repos/{REPOSITORY}')
     if repo['private']:
@@ -32,7 +43,7 @@ def main():
         saved = api(endpoint, 'PUT' if rule_id else 'POST', desired)
         verified = api(f'repos/{REPOSITORY}/rulesets/{saved["id"]}')
         for field in ('enforcement', 'conditions', 'bypass_actors', 'rules'):
-            if verified[field] != desired[field]:
+            if not matches(verified[field], desired[field]):
                 sys.exit(f'Verification mismatch in {desired["name"]}: {field}. Inspect repository rules before proceeding.')
         print(f'Active and verified: {verified["name"]} ({verified["id"]})')
     for branch in ('main', 'master'):
