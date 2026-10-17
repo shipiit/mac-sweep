@@ -18,11 +18,16 @@ struct ActivityChartCard: View {
     var body: some View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
-                SectionHeader(title: "Activity", subtitle: "CPU and memory, last 2 minutes")
+                HStack(alignment: .firstTextBaseline) {
+                    SectionHeader(title: "System Activity", subtitle: "CPU and memory usage, last 2 minutes")
+                    Spacer()
+                    Label("CPU \(Int((cpu.last ?? 0) * 100))%", systemImage: "circle.fill").foregroundStyle(.blue).font(.caption)
+                    Label("Memory \(Int((memory.last ?? 0) * 100))%", systemImage: "circle.fill").foregroundStyle(.purple).font(.caption)
+                }
                 Chart(points) { point in
                     AreaMark(x: .value("Time", point.index), y: .value("Percent", point.value * 100), series: .value("Series", point.series), stacking: .unstacked)
                         .foregroundStyle(by: .value("Series", point.series))
-                        .opacity(0.18)
+                        .opacity(0.3)
                         .interpolationMethod(.monotone)
                     LineMark(x: .value("Time", point.index), y: .value("Percent", point.value * 100), series: .value("Series", point.series))
                         .foregroundStyle(by: .value("Series", point.series))
@@ -34,7 +39,8 @@ struct ActivityChartCard: View {
                 .chartYScale(domain: 0...100)
                 .chartYAxis { AxisMarks(values: [0, 50, 100]) }
                 .chartYAxisLabel("%")
-                .frame(height: 150)
+                .chartLegend(.hidden)
+                .frame(height: 180)
                 .accessibilityLabel("CPU \(Int((cpu.last ?? 0) * 100)) percent, memory \(Int((memory.last ?? 0) * 100)) percent")
             }
         }

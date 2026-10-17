@@ -1,3 +1,4 @@
+import Charts
 import MacSweepCore
 import SwiftUI
 
@@ -8,6 +9,7 @@ struct NotchAITab: View {
 
     var body: some View {
         let ai = app.ai
+        VStack(spacing: 12) {
         HStack(alignment: .top, spacing: 26) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Today").foregroundStyle(.white.opacity(0.6))
@@ -58,6 +60,41 @@ struct NotchAITab: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+        NotchCostChart(entries: ai.index.entries)
+        }
         .padding(.top, 6)
+    }
+}
+
+/// Last 7 days of API-equivalent cost, today highlighted.
+private struct NotchCostChart: View {
+    let entries: [UsageEntry]
+
+    var body: some View {
+        let days = AIUsageSummary.daily(entries, days: 7)
+        let total = days.reduce(0) { $0 + $1.cost }
+        HStack(alignment: .bottom, spacing: 16) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Last 7 days").font(.caption).foregroundStyle(.white.opacity(0.55))
+                Text(TokenFormat.cost(total)).font(.system(size: 20, weight: .semibold, design: .rounded)).monospacedDigit()
+                Text("\(TokenFormat.cost(total / 7)) a day").font(.caption).foregroundStyle(.white.opacity(0.55))
+            }
+            .frame(width: 130, alignment: .leading)
+            Chart(days, id: \.day) { day in
+                BarMark(x: .value("Day", day.day, unit: .day), y: .value("Cost", day.cost))
+                    .foregroundStyle(Calendar.current.isDateInToday(day.day) ? Color.orange : Color.orange.opacity(0.45))
+                    .cornerRadius(4)
+            }
+            .chartYAxis(.hidden)
+            .chartXAxis {
+                AxisMarks(values: .stride(by: .day)) { _ in
+                    AxisValueLabel(format: .dateTime.weekday(.narrow)).foregroundStyle(.white.opacity(0.5))
+                }
+            }
+            .frame(height: 96)
+            .accessibilityLabel("AI cost per day for the last week")
+        }
+        .padding(12)
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }

@@ -1,0 +1,16 @@
+Use case: ads-marketing.
+Asset type: polished landscape product-launch image for a Peerlist post about MacSweep, suitable for social sharing, target 1920x1080 16:9 composition.
+Primary request: create a premium, restrained and technically credible promotional graphic for MacSweep, an actual native Mac utility for cleanup, protection, performance, developer tooling and AI usage insights.
+Scene: near-black charcoal background with a soft atmospheric indigo and electric blue glow, subtle orbital arcs, generous margins and refined editorial composition. No busy cyberpunk effects.
+Composition: top-left small MacSweep wordmark beside an app icon: rounded indigo-to-cyan square containing a white three-quarter gauge ring and a four-point sparkle. Large beautifully typeset headline occupies the left third, a sophisticated front-facing floating macOS app-window illustration occupies the right two thirds and lower center. Add one small floating companion panel for AI usage, and a compact expanded notch HUD above the main app window, clearly shaped as a black rounded notch extension. Integrate subtle depth, glass edge reflections and clean shadows without overwhelming the interface.
+Exact hero text, correctly spelled:
+"MacSweep"
+"Your Mac."
+"In focus."
+"Clean. Protect. Understand."
+Bottom small text:
+"Native SwiftUI • macOS 15+ • Apple Silicon"
+The app window should show a concise, legible stylized product UI inspired by a native macOS utility, with traffic-light window buttons, left sidebar listing "Dashboard", "Smart Scan", "Space & Junk", "Processes", "Ports", "AI Usage", and the main dashboard displaying three circular gauges for "CPU", "Memory", "Disk", a blue and violet system activity line chart, and four small metric tiles. Use illustrative sample values, never personal identifiers or real paths. An AI usage companion panel displays only "Claude Code", "Codex", and two tasteful horizontal bars. Notch HUD has tiny tabs "System", "Apps", "Ports", "AI", "Clean".
+Small caption by interface: "Illustrative preview".
+Style: top-tier professional software launch art, meticulous typography, exceptionally crisp vector-like UI rendered as a finished bitmap, realistic dimensional compositing, large readable hero type, sparse copy, sophisticated dark product design.
+Constraints: Do not imply the app source is public or claim app downloads are available to everyone. No invented awards, testimonials, performance gains, security guarantees, price claims or download counts. No Apple logo or Peerlist logo, no watermark, no private machine names, real IP addresses, usernames or file paths. Keep all text concise and correctly spelled. Do not include any text besides specified copy and the necessary short UI labels.

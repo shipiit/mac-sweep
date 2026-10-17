@@ -11,7 +11,7 @@ final class NotchState {
     var hasNotch = false
 
     static let earWidth: CGFloat = 66
-    static let expandedSize = CGSize(width: 740, height: 300)
+    static let expandedSize = CGSize(width: 780, height: 420)
 
     var collapsedSize: CGSize {
         CGSize(width: notchSize.width + Self.earWidth * 2, height: notchSize.height)

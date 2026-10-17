@@ -7,20 +7,24 @@ struct OverviewView: View {
     @State private var killRequest: KillRequest?
     @AppStorage(SettingsKeys.dashboardCards) private var layout = ""
 
-    private let columns = [GridItem(.adaptive(minimum: 300, maximum: .infinity), spacing: 14, alignment: .top)]
-
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Dashboard").font(.system(size: 30, weight: .bold))
+                        Text("Your Mac's health, performance and security at a glance.").font(.title3).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Label("Live · updates every few seconds", systemImage: "dot.radiowaves.left.and.right").font(.callout).foregroundStyle(.secondary)
+                }
                 if !app.hasFullDiskAccess { FullDiskAccessBanner(onRecheck: app.refreshPermissions) }
                 OverviewHero()
                 let cards = DashboardLayout.decode(layout)
                 if cards.contains(.activity) {
                     ActivityChartCard(cpu: app.monitor.cpuHistory, memory: app.monitor.memoryHistory)
                 }
-                LazyVGrid(columns: columns, spacing: 14) {
-                    ForEach(cards.filter { $0 != .activity }) { card($0) }
-                }
+                EqualHeightGrid(items: cards.filter { $0 != .activity }, columns: 3) { card($0) }
             }
             .padding(20)
         }
@@ -73,31 +77,31 @@ struct OverviewHero: View {
 
     var body: some View {
         let mac = app.system.mac
-        Card(padding: 20) {
-            HStack(spacing: 22) {
+        Panel(padding: 22) {
+            HStack(spacing: 26) {
                 Image(systemName: "macbook")
-                    .font(.system(size: 54, weight: .thin))
-                    .foregroundStyle(accent)
-                    .frame(width: 84)
+                    .font(.system(size: 84, weight: .light))
+                    .foregroundStyle(.primary.opacity(0.85))
+                    .frame(width: 150)
                     .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(mac.modelName).font(.title.weight(.semibold))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(mac.modelName).font(.system(size: 28, weight: .bold))
                     Text("\(mac.chip) · \(Format.memory(mac.memory)) memory · \(mac.osVersion)")
-                        .foregroundStyle(.secondary)
+                        .font(.title3).foregroundStyle(.secondary)
                     HStack(spacing: 8) {
-                        Pill(text: "Up \(app.system.uptime)")
-                        Pill(text: "Thermal: \(app.system.thermal.rawValue)", color: thermalColor)
+                        StatusChip(text: "Up \(app.system.uptime)", symbol: "clock", color: .secondary)
+                        StatusChip(text: "Thermal: \(app.system.thermal.rawValue)", symbol: "circle.fill", color: thermalColor)
                         if let memory = app.processes.memory {
-                            Pill(text: "Memory pressure: \(memory.pressure.rawValue)", color: memory.pressure.color)
+                            StatusChip(text: "Memory pressure: \(memory.pressure.rawValue)", symbol: "circle.fill", color: memory.pressure.color)
                         }
                     }
-                    .padding(.top, 4)
+                    .padding(.top, 6)
                 }
                 Spacer()
-                HStack(spacing: 22) {
-                    RingGauge(value: app.monitor.cpu, label: "CPU", size: 64)
-                    RingGauge(value: memoryFraction, label: "Memory", size: 64)
-                    RingGauge(value: diskFraction, label: "Disk", size: 64)
+                HStack(spacing: 26) {
+                    RingGauge(value: app.monitor.cpu, label: "CPU", size: 86, lineWidth: 9)
+                    RingGauge(value: memoryFraction, label: "Memory", size: 86, lineWidth: 9)
+                    RingGauge(value: diskFraction, label: "Disk", size: 86, lineWidth: 9)
                 }
             }
         }
@@ -148,5 +152,21 @@ struct TopProcessesCard: View {
                 }
             }
         }
+    }
+}
+
+/// Small rounded status label with an icon, for the dashboard hero.
+struct StatusChip: View {
+    let text: String
+    let symbol: String
+    let color: Color
+
+    var body: some View {
+        Label(text, systemImage: symbol)
+            .font(.callout.weight(.medium))
+            .imageScale(.small)
+            .foregroundStyle(color == .secondary ? .secondary : color)
+            .padding(.horizontal, 10).padding(.vertical, 5)
+            .background((color == .secondary ? Color.secondary : color).opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

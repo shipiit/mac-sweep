@@ -29,7 +29,12 @@ public struct ClaudePlanUsage: Sendable, Equatable {
     public var plan: String?
 
     public enum FetchError: Error, Equatable {
-        case notSignedIn, expired, unavailable
+        /// The user pressed Deny on the Keychain prompt; don't ask again until they re-enable the option.
+        case notSignedIn, denied, expired, unavailable
+    }
+
+    public enum KeychainRead: Equatable {
+        case found(Data), notFound, denied
     }
 
     static let endpoint = URL(string: "https://api.anthropic.com/api/oauth/usage")
@@ -67,10 +72,12 @@ public struct ClaudePlanUsage: Sendable, Equatable {
 
     // MARK: Credentials
 
-    struct Credentials: Equatable {
+    public struct Credentials: Equatable, Sendable {
         let accessToken: String
-        let expiresAt: Date?
+        public let expiresAt: Date?
         let plan: String?
+
+        public func isExpired(now: Date = Date()) -> Bool { expiresAt.map { $0 <= now } ?? false }
     }
 
     static func parseCredentials(_ data: Data) -> Credentials? {
@@ -90,22 +97,38 @@ public struct ClaudePlanUsage: Sendable, Equatable {
         return type.map { $0.prefix(1).uppercased() + $0.dropFirst() }
     }
 
-    static func keychainData() -> Data? {
+    public static func keychainData() -> KeychainRead {
         let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "Claude Code-credentials",
                                     kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne]
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
-        return item as? Data
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        return keychainResult(status: status, data: item as? Data)
     }
 
-    static func readCredentials(home: String = NSHomeDirectory(), keychain: () -> Data? = keychainData) -> Credentials? {
-        if let credentials = keychain().flatMap(parseCredentials) { return credentials }
-        return FileManager.default.contents(atPath: home + "/.claude/.credentials.json").flatMap(parseCredentials)
+    static func keychainResult(status: OSStatus, data: Data?) -> KeychainRead {
+        switch status {
+        case errSecSuccess: return data.map(KeychainRead.found) ?? .notFound
+        case errSecUserCanceled, errSecAuthFailed, errSecInteractionNotAllowed: return .denied
+        default: return .notFound
+        }
     }
 
-    public static func fetch(session: URLSession = .shared, now: Date = Date()) async throws -> ClaudePlanUsage {
-        guard let credentials = readCredentials() else { throw FetchError.notSignedIn }
-        if let expires = credentials.expiresAt, expires <= now { throw FetchError.expired }
+    /// Reads Claude Code's sign-in once; callers keep the result in memory instead of asking the Keychain again.
+    public static func loadCredentials(home: String = NSHomeDirectory(), keychain: () -> KeychainRead = keychainData) -> Result<Credentials, FetchError> {
+        switch keychain() {
+        case .found(let data):
+            if let credentials = parseCredentials(data) { return .success(credentials) }
+        case .denied:
+            return .failure(.denied)
+        case .notFound:
+            break
+        }
+        let file = FileManager.default.contents(atPath: home + "/.claude/.credentials.json").flatMap(parseCredentials)
+        return file.map { .success($0) } ?? .failure(.notSignedIn)
+    }
+
+    public static func fetch(with credentials: Credentials, session: URLSession = .shared, now: Date = Date()) async throws -> ClaudePlanUsage {
+        if credentials.isExpired(now: now) { throw FetchError.expired }
         guard let url = endpoint else { throw FetchError.unavailable }
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")

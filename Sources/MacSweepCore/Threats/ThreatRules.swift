@@ -79,13 +79,18 @@ public enum ThreatRules {
             reasons.append((.high, "Matches known adware “\(marker)”"))
         }
         if case .rejected(let why) = facts.gatekeeper, facts.kind != .script {
-            reasons.append((.high, "Gatekeeper rejects it: \(why)"))
+            reasons.append((facts.isQuarantined ? .high : .medium, "Gatekeeper rejects it: \(why)"))
         }
+        // A broken or missing signature on something just downloaded is a red flag; on an installed app it's usually
+        // the app updating itself or a local build, so it's reported for a look rather than as a threat.
         switch (facts.kind, facts.signature) {
         case (.app, .invalid?), (.installerPackage, .invalid?), (.executable, .invalid?):
-            reasons.append((.high, "Its code signature is broken: it may have been tampered with"))
+            reasons.append(facts.isQuarantined
+                ? (.high, "Downloaded with a broken code signature: it may have been tampered with")
+                : (.medium, "Its code signature doesn't verify (often an app that modified itself after install, or a local build)"))
         case (.app, .unsigned?), (.app, .missing?), (.installerPackage, .unsigned?):
-            reasons.append((facts.isQuarantined ? .high : .medium, "Downloaded program with no developer signature"))
+            reasons.append(facts.isQuarantined ? (.high, "Downloaded program with no developer signature")
+                                               : (.medium, "Program with no developer signature"))
         case (.executable, .unsigned?) where facts.isQuarantined:
             reasons.append((.medium, "Downloaded command-line program with no signature"))
         default: break

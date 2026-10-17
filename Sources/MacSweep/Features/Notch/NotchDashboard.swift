@@ -32,17 +32,22 @@ struct NotchDashboard: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 6) {
                 ForEach(NotchTab.allCases) { item in
-                    Button { withAnimation(.snappy) { tab = item } } label: {
+                    Button { tab = item } label: {
                         Label(item.rawValue, systemImage: item.symbol)
-                            .font(.system(size: 12, weight: .semibold))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(tab == item ? Color.white.opacity(0.16) : .clear, in: Capsule())
-                            .foregroundStyle(tab == item ? .white : .white.opacity(0.55))
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(tab == item ? Color.white.opacity(0.14) : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .foregroundStyle(tab == item ? .white : .white.opacity(0.6))
                     }
                     .buttonStyle(.plain)
                 }
                 Spacer()
+                SettingsLink { Image(systemName: "gearshape") }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.7))
+                    .help("Settings")
+                    .accessibilityLabel("Settings")
                 Button { open(.overview) } label: { Image(systemName: "arrow.up.forward.app") }
                     .buttonStyle(.plain)
                     .foregroundStyle(.white.opacity(0.7))
@@ -82,113 +87,14 @@ struct NotchDashboard: View {
     }
 }
 
-private struct NotchSystemTab: View {
-    @Environment(AppModel.self) private var app
-
-    var body: some View {
-        let memory = app.processes.memory
-        let volume = app.monitor.volume
-        HStack(alignment: .center, spacing: 22) {
-            RingGauge(value: app.monitor.cpu, label: "CPU", caption: app.system.thermal.rawValue, size: 58, lineWidth: 6)
-            RingGauge(value: memory.map { Double($0.used) / Double(max($0.total, 1)) } ?? 0, label: "Memory",
-                      caption: memory.map { Format.memory($0.used) }, size: 58, lineWidth: 6)
-            RingGauge(value: volume.map { Double($0.used) / Double(max($0.total, 1)) } ?? 0, label: "Disk",
-                      caption: volume.map { Format.bytes($0.available) + " free" }, size: 58, lineWidth: 6)
-            if let battery = app.system.battery {
-                RingGauge(value: Double(battery.percent) / 100, label: battery.isCharging ? "Charging" : "Battery",
-                          caption: battery.health.map { "Health \(Int(($0 * 100).rounded()))%" }, size: 58, lineWidth: 6, invertColors: true)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                ZStack {
-                    Sparkline(values: app.monitor.cpuHistory, color: .cyan)
-                    Sparkline(values: app.monitor.memoryHistory, color: .purple)
-                }
-                .frame(width: 180, height: 46)
-                HStack(spacing: 12) {
-                    Label(Format.bytes(UInt64(max(app.monitor.downloadRate, 0))) + "/s", systemImage: "arrow.down").foregroundStyle(.teal)
-                    Label(Format.bytes(UInt64(max(app.monitor.uploadRate, 0))) + "/s", systemImage: "arrow.up").foregroundStyle(.orange)
-                }
-                .monospacedDigit()
-                Text(app.system.network?.wifiName ?? app.system.network?.interface ?? "Offline").foregroundStyle(.white.opacity(0.6))
-            }
-        }
-        .padding(.top, 6)
-    }
-}
-
-private struct NotchAppsTab: View {
-    @Environment(AppModel.self) private var app
-    let onQuit: (Int32, String) -> Void
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            column("Top memory", rows: app.processes.rows.sorted { $0.memory > $1.memory }) { Format.bytes($0.snapshot.memory) }
-            column("Top CPU", rows: app.processes.rows.sorted { $0.cpu > $1.cpu }) { Format.percent($0.cpu) + "%" }
-        }
-    }
-
-    private func column(_ title: String, rows: [ProcessRow], value: @escaping (ProcessRow) -> String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased()).font(.system(size: 9, weight: .bold)).foregroundStyle(.white.opacity(0.5))
-            ForEach(rows.prefix(6)) { row in
-                HStack(spacing: 6) {
-                    ProcessIcon(pid: row.pid, path: row.snapshot.path, size: 14)
-                    Text(row.name).lineLimit(1)
-                    if row.trend.isSteadilyGrowing {
-                        Image(systemName: "chart.line.uptrend.xyaxis").foregroundStyle(.orange).accessibilityLabel("Memory growing")
-                    }
-                    Spacer(minLength: 2)
-                    Text(value(row)).monospacedDigit().foregroundStyle(.white.opacity(0.6))
-                    InlineConfirmButton(help: "Quit \(row.name)") { onQuit(row.pid, row.name) }
-                }
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private struct NotchPortsTab: View {
-    @Environment(AppModel.self) private var app
-    let onQuit: (Int32, String) -> Void
-
-    var body: some View {
-        let ports = Array(app.ports.ports.prefix(10))
-        if ports.isEmpty {
-            Text("Nothing is listening right now.").foregroundStyle(.white.opacity(0.6))
-        }
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 6) {
-            ForEach(ports) { port in
-                HStack(spacing: 6) {
-                    Text(":\(port.port)").font(.system(size: 11, weight: .semibold, design: .monospaced)).frame(width: 50, alignment: .leading)
-                    Text(port.command).lineLimit(1)
-                    Image(systemName: port.isLocalOnly ? "lock.fill" : "globe")
-                        .foregroundStyle(port.isLocalOnly ? .green : .orange)
-                        .accessibilityLabel(port.isLocalOnly ? "Local only" : "Exposed")
-                    Spacer(minLength: 2)
-                    if port.proto == "TCP" {
-                        Button { FileActions.open(url: URL(string: "http://localhost:\(port.port)")) } label: { Image(systemName: "safari") }
-                            .buttonStyle(.plain)
-                            .help("Open http://localhost:\(port.port)")
-                            .accessibilityLabel("Open port \(port.port)")
-                    }
-                    InlineConfirmButton(help: "Stop \(port.command)") { onQuit(port.pid, port.command) }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-        }
-    }
-}
-
 private struct NotchCleanTab: View {
     @Environment(AppModel.self) private var app
     let open: (SidebarSection) -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 16) {
+            RingGauge(value: app.monitor.volume.map { Double($0.used) / Double(max($0.total, 1)) } ?? 0, label: "Disk used",
+                      caption: app.monitor.volume.map { Format.bytes($0.available) + " free" }, size: 96, lineWidth: 10)
             VStack(alignment: .leading, spacing: 8) {
                 Text(Format.bytes(app.cleanup.total(.safe))).font(.system(size: 30, weight: .semibold, design: .rounded))
                 Text("safe to clean · \(Format.bytes(app.cleanup.total(.review))) to review").foregroundStyle(.white.opacity(0.6))
@@ -204,11 +110,22 @@ private struct NotchCleanTab: View {
                 }
             }
             VStack(alignment: .leading, spacing: 5) {
-                ForEach(app.cleanup.items(.safe).prefix(5)) { item in
-                    HStack {
-                        Text(item.rule.title).lineLimit(1)
-                        Spacer()
-                        Text(Format.bytes(item.size)).monospacedDigit().foregroundStyle(.white.opacity(0.6))
+                Text("Biggest cleanable items").font(.caption).foregroundStyle(.white.opacity(0.55))
+                let items = Array(app.cleanup.items.sorted { $0.size > $1.size }.prefix(6))
+                let largest = Double(max(items.first?.size ?? 1, 1))
+                if items.isEmpty { Text("Run a scan to see what can be cleaned.").foregroundStyle(.white.opacity(0.5)) }
+                ForEach(items) { item in
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack {
+                            Text(item.rule.title).lineLimit(1)
+                            Spacer()
+                            Text(Format.bytes(item.size)).monospacedDigit().foregroundStyle(.white.opacity(0.7))
+                        }
+                        GeometryReader { proxy in
+                            Capsule().fill(item.rule.safety == .safe ? Color.green : .orange)
+                                .frame(width: max(proxy.size.width * Double(item.size) / largest, 3))
+                        }
+                        .frame(height: 5)
                     }
                 }
             }

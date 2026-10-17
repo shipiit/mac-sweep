@@ -36,4 +36,12 @@ enum Format {
         guard let value else { return "—" }
         return value.formatted(.number.precision(.fractionLength(1)))
     }
+
+    /// "42s", "3m 12s", "1h 32m".
+    static func duration(_ seconds: TimeInterval) -> String {
+        let total = max(Int(seconds.rounded()), 0)
+        if total < 60 { return "\(total)s" }
+        if total < 3_600 { return "\(total / 60)m \(total % 60)s" }
+        return "\(total / 3_600)h \((total % 3_600) / 60)m"
+    }
 }

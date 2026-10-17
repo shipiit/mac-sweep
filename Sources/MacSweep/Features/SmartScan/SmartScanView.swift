@@ -20,6 +20,8 @@ struct SmartScanView: View {
                         runner.reset()
                         run()
                     }
+                } else if !isRunning && finishedAt == nil {
+                    SmartScanHome(onScan: run)
                 } else {
                     hero
                     if isRunning || finishedAt != nil { SmartScanChecklist(states: states) }

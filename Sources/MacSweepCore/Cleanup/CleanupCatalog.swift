@@ -66,6 +66,8 @@ public enum CleanupCatalog {
                     safety: .review, category: .ai, target: .paths(["~/.ollama/models"])),
         CleanupRule(id: "ai-models", title: "Hugging Face & LM Studio models", detail: "Downloaded model weights.",
                     safety: .review, category: .ai, target: .paths(["~/.cache/huggingface", "~/.lmstudio/models", "~/.cache/lm-studio/models", "~/.cache/torch"])),
+        CleanupRule(id: "ai-sessions", title: "Claude Code & Codex sessions", detail: "Your AI conversation history. Deleting it loses /resume and usage history; AI Usage can remove only old sessions.",
+                    safety: .review, category: .ai, target: .paths(["~/.claude/projects", "~/.codex/sessions"])),
         CleanupRule(id: "worktrees", title: "Claude & git worktrees", detail: "Extra checkouts created by agents. Check for unpushed work first.",
                     safety: .review, category: .code, target: .named([".claude/worktrees", ".worktrees"], idleDays: 7)),
         CleanupRule(id: "node-modules", title: "node_modules in idle projects", detail: "Dependencies of projects untouched for 30+ days.",

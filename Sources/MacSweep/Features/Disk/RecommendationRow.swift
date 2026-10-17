@@ -47,6 +47,12 @@ struct RecommendationRow: View {
                     .truncationMode(.middle)
             }
             Spacer(minLength: 8)
+            if let delta = cleanup.growth(of: item), abs(delta) >= 50_000_000 {
+                Label((delta > 0 ? "+" : "−") + Format.bytes(UInt64(delta.magnitude)), systemImage: delta > 0 ? "arrow.up.right" : "arrow.down.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(delta > 0 ? .orange : .green)
+                    .help("Change since your previous scan")
+            }
             Text(Format.bytes(item.size))
                 .font(.system(.body, design: .monospaced).weight(.semibold))
             Button { showsDetail = true } label: {

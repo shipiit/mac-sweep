@@ -93,7 +93,7 @@ import Testing
             CleanupTarget(path: Fixtures.home + "/.ssh", size: 5_000),
         ], home: Fixtures.home)
         #expect(script.hasPrefix("#!/bin/bash"))
-        #expect(script.contains("rm -rf -- '/Users/test/.npm/_cacache'"))
+        #expect(script.contains("npm cache clean --force"), "tool-managed caches use the tool's command")
         #expect(script.contains("rm -rf -- '/Users/test/it'\\''s $(here)'"))
         #expect(!script.contains(".ssh"))
         #expect(script.contains("2 locations"))

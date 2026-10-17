@@ -3,22 +3,42 @@ import SwiftUI
 
 struct RecommendationsPanel: View {
     @Bindable var cleanup: CleanupModel
+    /// The folder selected (or open) in the treemap; the Folder tab lists its contents to tick.
+    let folder: FileNode?
     @State private var showsConfirm = false
-    @State private var copied = false
+    @State private var showsScript = false
+    @State private var tab: Tab = .recommendations
+
+    enum Tab: String, CaseIterable, Identifiable {
+        case recommendations = "Recommendations", folder = "Folder"
+        var id: String { rawValue }
+    }
 
     var body: some View {
         Card(padding: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                SectionHeader(title: "Recommendations", subtitle: "Select items to clean. Nothing is selected for you.")
-                    .padding(16)
+                VStack(alignment: .leading, spacing: 10) {
+                    Picker("Panel", selection: $tab) { ForEach(Tab.allCases) { Text($0.rawValue).tag($0) } }
+                        .pickerStyle(.segmented).labelsHidden()
+                    Text(tab == .recommendations ? "Known caches and build output. Nothing is selected for you."
+                         : "Tick anything inside \(folder?.name ?? "the selected folder"). Picks from different folders add up below.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(14)
                 Divider()
-                content
+                if tab == .recommendations { content } else { FolderPicker(folder: folder, cleanup: cleanup) }
                 Divider()
                 footer.padding(14)
             }
         }
         .sheet(isPresented: $showsConfirm) {
             CleanConfirmSheet(cleanup: cleanup)
+        }
+        .sheet(isPresented: $showsScript) {
+            CleanupScriptSheet(script: CleanupScript.make(cleanup.selectedTargets, home: cleanup.home, reviewFirst: cleanup.reviewPaths))
+        }
+        .onChange(of: folder?.path) { _, path in
+            if path != nil, folder?.path != cleanup.home { tab = .folder }
         }
         .alert(
             reportTitle,
@@ -67,35 +87,29 @@ struct RecommendationsPanel: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
-                Text(cleanup.selected.isEmpty ? "Nothing selected" : "\(Format.bytes(cleanup.selectedSize)) selected")
-                    .font(.system(.body, design: .monospaced).weight(.semibold))
-                    .lineLimit(1)
-                    .fixedSize()
-                    .contentTransition(.numericText())
-                Text("\(cleanup.selectedItemCount) groups · \(cleanup.selectedTargets.count) locations")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(cleanup.hasSelection ? "\(Format.bytes(cleanup.selectedSize)) selected" : "Nothing selected")
+                    .font(.system(.title3, design: .rounded).weight(.semibold)).monospacedDigit()
+                Spacer()
+                Text("\(cleanup.selectedTargets.count) locations").font(.caption).foregroundStyle(.secondary)
             }
-            Spacer()
-            if cleanup.selected.isEmpty {
-                Button("Select Safe") { withAnimation { cleanup.selectSafe() } }
-                    .disabled(cleanup.items(.safe).isEmpty)
-            } else {
-                Button("Clear") { withAnimation { cleanup.clearSelection() } }
+            HStack(spacing: 8) {
+                if cleanup.hasSelection {
+                    Button("Clear") { cleanup.clearSelection() }
+                } else {
+                    Button("Select Safe") { cleanup.selectSafe() }.disabled(cleanup.items(.safe).isEmpty)
+                }
+                Button { showsScript = true } label: { Label("Script", systemImage: "terminal") }
+                    .disabled(!cleanup.hasSelection)
+                    .help("See a cleanup script that uses each tool's own clean command; nothing is deleted")
+                Spacer(minLength: 0)
+                Button { showsConfirm = true } label: { Label("Clean…", systemImage: "trash").frame(minWidth: 70) }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!cleanup.hasSelection || cleanup.isCleaning)
+                    .keyboardShortcut(.delete, modifiers: .command)
             }
-            Button("Copy Script", systemImage: "doc.on.clipboard") {
-                FileActions.copy(CleanupScript.make(cleanup.selectedTargets, home: cleanup.home))
-                copied = true
-            }
-            .labelStyle(.iconOnly)
-            .disabled(cleanup.selected.isEmpty)
-            .help(copied ? "Copied" : "Copy the selection as a shell script to review and run yourself")
-            Button("Clean…") { showsConfirm = true }
-                .buttonStyle(.borderedProminent)
-                .disabled(cleanup.selected.isEmpty || cleanup.isCleaning)
-                .keyboardShortcut(.delete, modifiers: .command)
+            .controlSize(.regular)
         }
     }
 

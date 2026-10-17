@@ -8,7 +8,8 @@ struct ExplorerCard: View {
 
     @State private var coloring: TreemapColoring = .category
     @State private var hovered: TreemapTile?
-    @State private var selected: TreemapTile?
+    /// Shared with the side panel, which lists the selected folder's contents.
+    @Binding var selected: TreemapTile?
 
     var body: some View {
         Card(padding: 0) {
@@ -29,7 +30,7 @@ struct ExplorerCard: View {
                         onTrash: onTrash
                     )
                     .padding(.horizontal, 13)
-                    .frame(minHeight: 480)
+                    .frame(minHeight: 400, maxHeight: .infinity)
                 }
                 Divider().padding(.top, 10)
                 footer.padding(.horizontal, 16).padding(.vertical, 10)

@@ -41,6 +41,11 @@ public enum AdminRunner {
         _ = try await run("/usr/bin/dscacheutil -flushcache; /usr/bin/killall -HUP mDNSResponder; /usr/sbin/purge")
     }
 
+    /// Turns the macOS application firewall on (one fixed command, password prompt).
+    public static func enableFirewall() async throws {
+        _ = try await run("/usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on")
+    }
+
     public static func purgeMemory() async throws {
         _ = try await run("/usr/sbin/purge")
     }

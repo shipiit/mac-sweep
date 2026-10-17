@@ -28,13 +28,15 @@ import Testing
     }
 
     @Test func signatureAndGatekeeperRules() {
-        #expect(ThreatRules.assess(facts("Tool.app", .app, .invalid))?.severity == .high)
+        #expect(ThreatRules.assess(facts("Tool.app", .app, .invalid, quarantined: true))?.severity == .high)
+        #expect(ThreatRules.assess(facts("Tool.app", .app, .invalid))?.severity == .medium, "installed apps that changed themselves aren't threats")
         #expect(ThreatRules.assess(facts("Tool.app", .app, .unsigned, quarantined: true))?.severity == .high)
         #expect(ThreatRules.assess(facts("Tool.app", .app, .unsigned))?.severity == .medium)
         #expect(ThreatRules.assess(facts("Setup.pkg", .installerPackage, .unsigned))?.severity == .medium)
         #expect(ThreatRules.assess(facts("cli", .executable, .unsigned, quarantined: true))?.severity == .medium)
         #expect(ThreatRules.assess(facts("cli", .executable, .unsigned)) == nil, "locally built tools are fine")
-        #expect(ThreatRules.assess(facts("App.app", .app, .developer(teamID: "T"), gatekeeper: .rejected("Unnotarized Developer ID")))?.severity == .high)
+        #expect(ThreatRules.assess(facts("App.app", .app, .developer(teamID: "T"), gatekeeper: .rejected("Unnotarized Developer ID"), quarantined: true))?.severity == .high)
+        #expect(ThreatRules.assess(facts("App.app", .app, .developer(teamID: "T"), gatekeeper: .rejected("x")))?.severity == .medium)
         #expect(ThreatRules.assess(facts("App.app", .app, .developer(teamID: "T"), gatekeeper: .accepted)) == nil)
         #expect(ThreatRules.assess(facts("App.app", .app, .apple)) == nil)
     }
@@ -77,6 +79,7 @@ import Testing
         defer { try? FileManager.default.removeItem(atPath: root) }
         let manager = FileManager.default
         try manager.createDirectory(atPath: root + "/Fake.pdf.app/Contents/MacOS", withIntermediateDirectories: true)
+        try manager.createDirectory(atPath: root + "/iCloud.im.vector.app/data", withIntermediateDirectories: true)
         try manager.createDirectory(atPath: root + "/node_modules/pkg", withIntermediateDirectories: true)
         try "#!/bin/sh".write(toFile: root + "/node_modules/pkg/run.command", atomically: true, encoding: .utf8)
         try "#!/bin/sh".write(toFile: root + "/setup.command", atomically: true, encoding: .utf8)
@@ -85,6 +88,7 @@ import Testing
         var seen: [String] = []
         ThreatScanner.walk(root) { seen.append(($0 as NSString).lastPathComponent); return true }
         #expect(seen.contains("Fake.pdf.app") && !seen.contains("MacOS") && !seen.contains("run.command"))
+        #expect(!seen.contains("iCloud.im.vector.app"), "a folder named .app without bundle structure isn't an app")
         let verdicts = await ThreatScanner.scan(roots: [root])
         #expect(verdicts.map(\.facts.name).sorted() == ["Fake.pdf.app", "song.mp3.command"])
         #expect(verdicts.allSatisfy { $0.severity == .high })

@@ -68,10 +68,10 @@ mindmap
 ### 🛡 Protect
 | | |
 |---|---|
-| **Malware Scan** | Finds disguised programs (`invoice.pdf.app`), broken or missing code signatures, Gatekeeper rejections, known adware and hidden executables. Each finding can be quarantined, revealed or ignored. |
-| **Download Protection** | Checks every finished download. Clear threats are moved to quarantine before you can open them; suspicious files raise a notification. On by default. |
+| **Malware Scan** | Quick, Full and **Deep** scans (whole home folder, apps, startup folders). Finds disguised programs (`invoice.pdf.app`), broken or missing code signatures, Gatekeeper rejections, known adware and hidden executables, and shows Apple XProtect's definition version. Keeps a history of every scan. |
+| **Download Protection** | Checks every finished download and keeps the last 20 with where they came from, who signed them and the verdict. Clear threats are moved to quarantine before you can open them; suspicious files raise a notification. On by default. |
 | **Quarantine** | Quarantined files have their execute permission removed. Restore or delete them any time. |
-| **Security Audit** | SIP, Gatekeeper, FileVault, Firewall and XProtect status, plus suspicious startup items. |
+| **Security Audit** | A protection score with SIP, Gatekeeper, FileVault, Firewall and XProtect status (the Firewall can be turned on from here), suspicious startup items, high-risk extensions, recommendations and app-permission counts. The sidebar badge shows **Secure** or the number of issues. |
 | **App Permissions** | Which apps can use the camera, microphone, screen recording, Full Disk Access or Accessibility, flagged by risk, with a jump to revoke. |
 | **Network Monitor** | Live connections per app with the hosts they talk to; untrusted programs going online are flagged. |
 | **Sharing & Wi-Fi · Backups · Extensions** | Wi-Fi security, SSH and screen sharing, firewall and AirDrop; Time Machine age and excluded folders; browser extensions per profile with their permissions. |
@@ -136,6 +136,13 @@ flowchart TD
 - **PathGuard** refuses anything outside your home folder, `/Applications` and `/Users/Shared`, plus keys (`.ssh`, `.aws`, Keychains), system preferences and MacSweep itself.
 - **Trash by default:** permanent deletion is always opt-in and confirmed. Duplicate removal always keeps one copy; archives are verified before the original can go.
 - **Private:** no analytics. The only network calls are ones you trigger, plus the public Claude and OpenAI status pages.
+
+## Lightweight by design
+
+- Live process sampling runs every 3 s only while a page that shows it is open; otherwise every 10 s.
+- AI usage reads only new transcript lines and wakes on file changes instead of polling.
+- Big scans release memory as they go: a Deep Scan of 4.5 million files peaks around 220 MB and memory is handed back afterwards.
+- Typical idle use: about 100 MB of memory and 1–3% CPU with the window open.
 
 ## Architecture
 

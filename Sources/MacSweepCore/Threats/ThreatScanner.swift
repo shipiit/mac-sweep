@@ -38,24 +38,41 @@ public enum ThreatScanner {
         return verdicts.compactMap { $0 }.sorted { ($0.severity, $1.facts.path) > ($1.severity, $0.facts.path) }
     }
 
-    /// Calls `visit` for every file (and every app bundle as one item); stop by returning false.
+    /// Apple's own templates and sample apps ship unsigned on purpose.
+    static let trustedPrefixes = ["/Library/Application Support/Script Editor/", "/System/"]
+
+    /// Calls `visit` for every file (and every real app bundle as one item); stop by returning false.
+    /// Each step runs in its own autorelease pool so walking millions of files stays at a flat memory cost.
     static func walk(_ root: String, visit: (String) -> Bool) {
         guard let enumerator = FileManager.default.enumerator(at: URL(fileURLWithPath: root), includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
                                                               options: [], errorHandler: { _, _ in true }) else { return }
-        for case let url as URL in enumerator {
-            let name = url.lastPathComponent
-            let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-            if values?.isSymbolicLink == true { continue }
-            if values?.isDirectory == true {
-                if skippedNames.contains(name) { enumerator.skipDescendants(); continue }
-                if bundleExtensions.contains(url.pathExtension.lowercased()) {
-                    enumerator.skipDescendants()
-                    if url.pathExtension.lowercased() == "app", !visit(url.path) { return }
+        var keepGoing = true
+        while keepGoing {
+            keepGoing = autoreleasepool { () -> Bool in
+                guard let url = enumerator.nextObject() as? URL else { return false }
+                let name = url.lastPathComponent
+                let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                if values?.isSymbolicLink == true { return true }
+                if values?.isDirectory == true {
+                    if skippedNames.contains(name) || trustedPrefixes.contains(where: url.path.hasPrefix) {
+                        enumerator.skipDescendants()
+                        return true
+                    }
+                    let ext = url.pathExtension.lowercased()
+                    if bundleExtensions.contains(ext) {
+                        enumerator.skipDescendants()
+                        if ext == "app", isAppBundle(url.path) { return visit(url.path) }
+                    }
+                    return true
                 }
-                continue
+                return visit(url.path)
             }
-            if !visit(url.path) { return }
         }
+    }
+
+    /// A folder named *.app is only an app if it has the bundle structure.
+    static func isAppBundle(_ path: String) -> Bool {
+        FileManager.default.fileExists(atPath: path + "/Contents/Info.plist") || FileManager.default.fileExists(atPath: path + "/Contents/MacOS")
     }
 
     public static func isCandidate(_ path: String) -> Bool {

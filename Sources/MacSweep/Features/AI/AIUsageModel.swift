@@ -16,6 +16,8 @@ final class AIUsageModel {
     private(set) var planUsage: ClaudePlanUsage?
     private(set) var planError: ClaudePlanUsage.FetchError?
     @ObservationIgnored private var planCheckedAt: Date?
+    @ObservationIgnored private var credentials: ClaudePlanUsage.Credentials?
+    @ObservationIgnored private var keychainReadAt: Date?
 
     @ObservationIgnored private let store = AIUsageStore.standard
     @ObservationIgnored private var loop: Task<Void, Never>?
@@ -54,17 +56,37 @@ final class AIUsageModel {
         }
     }
 
-    /// At most every 5 minutes unless forced; clears everything when the option is off.
+    /// At most every 5 minutes unless forced. The Keychain is read once and the sign-in kept in memory, so macOS
+    /// asks at most once per launch (and again only after Claude Code's token rotates). Deny stops all requests
+    /// until the option is switched off and on.
     func refreshPlan(force: Bool = false) async {
         guard UserDefaults.standard.bool(forKey: SettingsKeys.claudePlanLimits) else {
             planUsage = nil
             planError = nil
+            credentials = nil
             return
         }
+        if planError == .denied, !force { return }
         if !force, let checked = planCheckedAt, Date().timeIntervalSince(checked) < 300 { return }
         planCheckedAt = Date()
+        if credentials == nil || credentials?.isExpired() == true {
+            // An expired token is only re-read every 30 minutes, so a stale sign-in can't cause a prompt every cycle.
+            if !force, let read = keychainReadAt, Date().timeIntervalSince(read) < 1_800, credentials != nil {
+                planError = .expired
+                return
+            }
+            keychainReadAt = Date()
+            let loaded = await Task.detached(priority: .utility) { ClaudePlanUsage.loadCredentials() }.value
+            switch loaded {
+            case .success(let loaded): credentials = loaded
+            case .failure(let error):
+                planError = error
+                return
+            }
+        }
+        guard let credentials else { return }
         do {
-            planUsage = try await Task.detached(priority: .utility) { try await ClaudePlanUsage.fetch() }.value
+            planUsage = try await ClaudePlanUsage.fetch(with: credentials)
             planError = nil
         } catch let error as ClaudePlanUsage.FetchError {
             planError = error

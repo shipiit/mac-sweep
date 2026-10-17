@@ -4,25 +4,29 @@ import SwiftUI
 struct StorageView: View {
     @Environment(AppModel.self) private var app
     @State private var trashNodes: [FileNode]?
+    @State private var selectedTile: TreemapTile?
 
     var body: some View {
         let disk = app.disk
         Group {
             if let result = disk.result {
+                GeometryReader { proxy in
                 ScrollView {
                     VStack(spacing: 14) {
                         if !app.hasFullDiskAccess { FullDiskAccessBanner(onRecheck: app.refreshPermissions) }
                         if disk.isScanning { ScanProgressBar(disk: disk) }
                         StorageStats(disk: disk, cleanup: app.cleanup, result: result)
                         HStack(alignment: .top, spacing: 14) {
-                            ExplorerCard(disk: disk, cleanup: app.cleanup) { trashNodes = [$0] }
+                            ExplorerCard(disk: disk, cleanup: app.cleanup, onTrash: { trashNodes = [$0] }, selected: $selectedTile)
                                 .frame(minWidth: 520)
-                            RecommendationsPanel(cleanup: app.cleanup)
+                            RecommendationsPanel(cleanup: app.cleanup, folder: selectedTile?.node ?? disk.focusNode)
                                 .frame(width: 380)
-                                .frame(minHeight: 560)
                         }
+                        // Map and panel fill whatever height the window has left below the stats.
+                        .frame(height: max(600, proxy.size.height - (disk.isScanning ? 250 : 200)))
                     }
                     .padding(20)
+                }
                 }
             } else {
                 ScanPlaceholder(disk: disk, hasFullDiskAccess: app.hasFullDiskAccess, onRecheck: app.refreshPermissions)
@@ -38,7 +42,7 @@ struct StorageView: View {
 
     private var subtitle: String {
         guard let result = app.disk.result else { return "Not scanned yet" }
-        return "\(Format.path(result.root.path)) · scanned \(Format.relative(result.finishedAt)) in \(Int(result.duration.rounded()))s"
+        return "\(Format.path(result.root.path)) · scanned \(Format.relative(result.finishedAt)) in \(Format.duration(result.duration))"
     }
 }
 

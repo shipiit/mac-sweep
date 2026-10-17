@@ -33,6 +33,8 @@ final class ProcessModel {
     private(set) var lastUpdated: Date?
     var isPaused = false
 
+    /// True while a page that shows live process data is open; otherwise sampling slows to save CPU.
+    var isLive = true
     static let interval: Duration = .seconds(3)
     static let backgroundInterval: Duration = .seconds(10)
     static let historyLimit = 120
@@ -53,7 +55,7 @@ final class ProcessModel {
                 if let self, !self.isPaused { await self.refresh() }
                 // Live updates while you're looking; a slower trickle in the background keeps
                 // memory-trend history going without costing battery.
-                try? await Task.sleep(for: NSApp.isActive ? Self.interval : Self.backgroundInterval)
+                try? await Task.sleep(for: NSApp.isActive && (self?.isLive ?? true) ? Self.interval : Self.backgroundInterval)
             }
         }
     }

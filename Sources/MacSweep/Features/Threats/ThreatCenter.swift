@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import MacSweepCore
 import Observation
@@ -11,10 +12,16 @@ final class ThreatCenter {
     private(set) var verdicts: [ThreatVerdict] = []
     private(set) var isScanning = false
     private(set) var progress: ThreatScanner.Progress?
-    private(set) var lastScan: Date?
+    var lastScan: Date? { history.first?.date }
+    /// Past scans and download checks, newest first.
+    private(set) var history: [ThreatScanRecord] = []
+    private(set) var xprotect: XProtectInfo?
+    private(set) var scanningKind: ThreatScanKind?
     private(set) var quarantined: [QuarantinedItem] = []
     /// Download Protection events, newest first.
     private(set) var events: [GuardEvent] = []
+    /// The last 20 downloads checked, with what was found; kept across restarts.
+    private(set) var downloadsLog: [DownloadRecord] = []
     var message: String?
     var isProtectionOn: Bool {
         didSet {
@@ -35,12 +42,16 @@ final class ThreatCenter {
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var checked: [String: Date] = [:]
     static let protectionKey = "downloadProtection"
+    nonisolated static let ignoredNames: Set<String> = [".DS_Store", ".localized"]
     nonisolated static let partialExtensions: Set<String> = ["crdownload", "download", "part", "partial", "opdownload", "tmp"]
     private var downloads: String { NSHomeDirectory() + "/Downloads" }
 
     init() {
         isProtectionOn = UserDefaults.standard.object(forKey: Self.protectionKey) as? Bool ?? true
         quarantined = store.items()
+        history = ThreatScanHistory.standard.load()
+        downloadsLog = DownloadLog.standard.load()
+        xprotect = XProtectInfo.read()
     }
 
     func start() {
@@ -49,26 +60,48 @@ final class ThreatCenter {
 
     // MARK: Full scan
 
-    func scan(roots: [String] = ThreatScanner.defaultRoots()) {
+    func scan(_ kind: ThreatScanKind = .full, roots custom: [String]? = nil) {
         guard !isScanning else { return }
+        let roots = custom ?? kind.roots()
         isScanning = true
+        scanningKind = kind
         message = nil
+        let started = Date()
         scanTask = Task { [weak self] in
-            let found = await ThreatScanner.scan(roots: roots) { progress in
+            let seen = ProgressCounter()
+            let found = await ThreatScanner.scan(roots: roots, maxFiles: kind == .deep ? 10_000_000 : 400_000) { progress in
+                seen.value = progress.filesSeen
                 Task { @MainActor in self?.progress = progress }
             }
-            guard let self else { return }
+            guard let self, !Task.isCancelled else { return }
             verdicts = found
             isScanning = false
+            scanningKind = nil
             progress = nil
-            lastScan = Date()
+            let scope = custom.map { $0.map(Format.path).joined(separator: ", ") } ?? kind.scopeTitle
+            let record = ThreatScanRecord(kind: kind, scope: scope, date: started, duration: Date().timeIntervalSince(started),
+                                          filesChecked: seen.value, threats: found.count)
+            history = (try? ThreatScanHistory.standard.append(record)) ?? [record] + history
+            xprotect = XProtectInfo.read()
             MemoryRelief.release()
         }
+    }
+
+    /// Lets the user pick folders for a one-off scan.
+    func scanCustomFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.allowsMultipleSelection = true
+        panel.prompt = "Scan"
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        scan(.custom, roots: panel.urls.map(\.path))
     }
 
     func cancelScan() {
         scanTask?.cancel()
         isScanning = false
+        scanningKind = nil
         progress = nil
     }
 
@@ -116,30 +149,40 @@ final class ThreatCenter {
     }
 
     /// Looks at files that appeared or changed in Downloads in the last 10 minutes and are fully written.
+    /// Checks files that appeared or changed in Downloads in the last 10 minutes and are fully written. Every new
+    /// download is logged; only programs, installers, click-to-run scripts and disguised files need a deeper look.
     private func checkDownloads() async {
         let folder = downloads
         let since = Date().addingTimeInterval(-600)
         let alreadyChecked = checked
-        let found = await Task.detached(priority: .utility) { () -> [(String, Date, ThreatVerdict?)] in
+        let found = await Task.detached(priority: .utility) { () -> [(Date, DownloadRecord, ThreatVerdict?)] in
             let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
-            return names.compactMap { name -> (String, Date, ThreatVerdict?)? in
+            return names.compactMap { name -> (Date, DownloadRecord, ThreatVerdict?)? in
                 let path = folder + "/" + name
-                guard !name.hasPrefix("."), !ThreatCenter.partialExtensions.contains((name as NSString).pathExtension.lowercased()),
-                      let modified = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date,
-                      modified > since, alreadyChecked[path] != modified, ThreatScanner.isCandidate(path) else { return nil }
-                return (path, modified, ThreatScanner.facts(for: path).flatMap(ThreatRules.assess))
+                guard !ThreatCenter.ignoredNames.contains(name),
+                      !ThreatCenter.partialExtensions.contains((name as NSString).pathExtension.lowercased()),
+                      let attributes = try? FileManager.default.attributesOfItem(atPath: path),
+                      let modified = attributes[.modificationDate] as? Date,
+                      modified > since, alreadyChecked[path] != modified else { return nil }
+                let facts = ThreatScanner.isCandidate(path) ? ThreatScanner.facts(for: path) : nil
+                let verdict = facts.flatMap(ThreatRules.assess)
+                let size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
+                return (modified, DownloadRecord.make(path: path, size: size, date: Date(), facts: facts, verdict: verdict), verdict)
             }
         }.value
-        for (path, modified, verdict) in found {
-            checked[path] = modified
+        guard !found.isEmpty else { return }
+        for (modified, record, verdict) in found {
+            checked[record.path] = modified
             guard let verdict else { continue }
             if verdict.isAutoQuarantine, (try? store.quarantine(verdict)) != nil {
                 quarantined = store.items()
-                record(verdict, action: "Blocked and quarantined")
+                self.record(verdict, action: "Blocked and quarantined")
             } else {
-                record(verdict, action: "Flagged, review it before opening")
+                self.record(verdict, action: "Flagged, review it before opening")
             }
         }
+        let records = found.map(\.1)
+        downloadsLog = (try? DownloadLog.standard.append(records)) ?? Array((records + downloadsLog).prefix(DownloadLog.limit))
     }
 
     private func record(_ verdict: ThreatVerdict, action: String) {
@@ -155,5 +198,15 @@ final class ThreatCenter {
             content.sound = .default
             UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
         }
+    }
+}
+
+/// Last file count reported by the scanner's progress callback.
+private final class ProgressCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored = 0
+    var value: Int {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }

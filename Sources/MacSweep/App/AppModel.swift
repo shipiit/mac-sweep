@@ -22,10 +22,15 @@ final class AppModel {
     let usage = UsageModel()
     let ai = AIUsageModel()
     let insights = InsightsCenter()
+    /// Pages that show per-process numbers and so need 3-second sampling.
+    static let liveProcessPages: Set<SidebarSection> = [.processes, .overview, .ports, .optimization]
     let threats = ThreatCenter()
     /// Reopens on the page used last (`-lastSection "Developer"` on the command line also works).
     var section: SidebarSection? = UserDefaults.standard.string(forKey: "lastSection").flatMap(SidebarSection.init(rawValue:)) ?? .smartScan {
-        didSet { UserDefaults.standard.set(section?.rawValue, forKey: "lastSection") }
+        didSet {
+            UserDefaults.standard.set(section?.rawValue, forKey: "lastSection")
+            processes.isLive = Self.liveProcessPages.contains(section ?? .smartScan)
+        }
     }
     private(set) var hasFullDiskAccess = Permissions.hasFullDiskAccess()
     /// Set by the menu bar label, which lives in a scene and can open windows.
@@ -44,7 +49,14 @@ final class AppModel {
         ai.start()
         insights.start(app: self)
         threats.start()
+        // A quiet audit shortly after launch keeps the sidebar's security badge current.
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(20))
+            guard let self, self.security.lastRun == nil, !self.security.isRunning else { return }
+            await self.security.run()
+        }
         Task { [security] in await security.run() }
+        processes.isLive = Self.liveProcessPages.contains(section ?? .smartScan)
         processes.start()
         portLoop = Task { [ports] in
             while !Task.isCancelled {

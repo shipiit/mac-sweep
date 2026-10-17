@@ -1,4 +1,5 @@
 import Foundation
+import Security
 import Testing
 @testable import MacSweepCore
 
@@ -56,10 +57,28 @@ import Testing
         try FileManager.default.createDirectory(atPath: home + "/.claude", withIntermediateDirectories: true)
         let json = #"{"claudeAiOauth":{"accessToken":"file-token","subscriptionType":"pro"}}"#
         try json.write(toFile: home + "/.claude/.credentials.json", atomically: true, encoding: .utf8)
-        let fromFile = ClaudePlanUsage.readCredentials(home: home) { nil }
-        #expect(fromFile?.accessToken == "file-token" && fromFile?.plan == "Pro")
+        let fromFile = try ClaudePlanUsage.loadCredentials(home: home) { .notFound }.get()
+        #expect(fromFile.accessToken == "file-token" && fromFile.plan == "Pro")
         let keychainJSON = #"{"claudeAiOauth":{"accessToken":"keychain-token"}}"#
-        #expect(ClaudePlanUsage.readCredentials(home: home) { Data(keychainJSON.utf8) }?.accessToken == "keychain-token")
-        #expect(ClaudePlanUsage.readCredentials(home: home + "/missing") { nil } == nil)
+        #expect(try ClaudePlanUsage.loadCredentials(home: home) { .found(Data(keychainJSON.utf8)) }.get().accessToken == "keychain-token")
+        #expect(throws: ClaudePlanUsage.FetchError.notSignedIn) { try ClaudePlanUsage.loadCredentials(home: home + "/missing") { .notFound }.get() }
+        #expect(throws: ClaudePlanUsage.FetchError.denied, "Deny never falls back or retries") {
+            try ClaudePlanUsage.loadCredentials(home: home) { .denied }.get()
+        }
+    }
+
+    @Test func mapsKeychainStatuses() {
+        #expect(ClaudePlanUsage.keychainResult(status: errSecSuccess, data: Data("x".utf8)) == .found(Data("x".utf8)))
+        #expect(ClaudePlanUsage.keychainResult(status: errSecSuccess, data: nil) == .notFound)
+        #expect(ClaudePlanUsage.keychainResult(status: errSecItemNotFound, data: nil) == .notFound)
+        #expect(ClaudePlanUsage.keychainResult(status: errSecUserCanceled, data: nil) == .denied)
+        #expect(ClaudePlanUsage.keychainResult(status: errSecAuthFailed, data: nil) == .denied)
+    }
+
+    @Test func expiryCheck() throws {
+        let json = #"{"claudeAiOauth":{"accessToken":"t","expiresAt":1000000}}"#
+        let credentials = try #require(ClaudePlanUsage.parseCredentials(Data(json.utf8)))
+        #expect(credentials.isExpired(now: Date(timeIntervalSince1970: 1_001)))
+        #expect(!credentials.isExpired(now: Date(timeIntervalSince1970: 999)))
     }
 }

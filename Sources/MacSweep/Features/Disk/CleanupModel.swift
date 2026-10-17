@@ -27,6 +27,11 @@ final class CleanupModel {
     var mode: RemovalMode = .trash
     var report: Report?
 
+    /// Folders and files ticked by hand in the treemap's folder panel, cleaned together with recommendations.
+    private(set) var picked: [String: CleanupTarget] = [:]
+    /// Bytes each target grew (or shrank) since the previous scan, from `SizeHistory`.
+    private(set) var growth: [String: Int64] = [:]
+
     /// Path → safety, used by the treemap to hatch cleanable tiles.
     private(set) var cleanableIndex: [String: CleanupSafety] = [:]
 
@@ -42,11 +47,36 @@ final class CleanupModel {
     func count(_ safety: CleanupSafety) -> Int { items(safety).count }
 
     var selectedTargets: [CleanupTarget] {
-        items.flatMap(\.targets).filter { selected.contains($0.path) }
+        let fromRules = items.flatMap(\.targets).filter { selected.contains($0.path) }
+        let ruled = Set(fromRules.map(\.path))
+        return fromRules + picked.values.filter { !ruled.contains($0.path) }.sorted { $0.size > $1.size }
+    }
+
+    /// Review-first locations; the generated script leaves these commented out.
+    var reviewPaths: Set<String> { Set(items(.review).flatMap(\.targets).map(\.path)) }
+
+    var hasSelection: Bool { !selected.isEmpty || !picked.isEmpty }
+
+    func isPicked(_ path: String) -> Bool { picked[path] != nil || selected.contains(path) }
+
+    /// Ticks a folder from the treemap. Protected paths are refused, the same as everywhere else.
+    func togglePick(_ node: FileNode) {
+        if picked[node.path] != nil {
+            picked[node.path] = nil
+        } else if selected.contains(node.path) {
+            selected.remove(node.path)
+        } else if PathGuard.canRemove(node.path, home: home, extraProtected: [Bundle.main.bundlePath]) {
+            picked[node.path] = CleanupTarget(path: node.path, size: node.size, modified: node.modified)
+        }
+    }
+
+    func growth(of item: CleanupItem) -> Int64? {
+        let deltas = item.targets.compactMap { growth[$0.path] }
+        return deltas.isEmpty ? nil : deltas.reduce(0, +)
     }
 
     var selectedSize: UInt64 { selectedTargets.reduce(0) { $0 + $1.size } }
-    var selectedItemCount: Int { items.filter { selectionState($0) != .none }.count }
+    var selectedItemCount: Int { items.filter { selectionState($0) != .none }.count + picked.count }
     var selectionIncludesReview: Bool { items(.review).contains { selectionState($0) != .none } }
 
     func evaluate(_ result: ScanResult?) {
@@ -71,7 +101,22 @@ final class CleanupModel {
                 uniquingKeysWith: { first, _ in first }
             )
             self.isEvaluating = false
+            await self.updateGrowth(scannedAt: result.finishedAt)
         }
+    }
+
+    /// Compares each target with the last scan in the size history, then records this scan.
+    private func updateGrowth(scannedAt: Date) async {
+        let sizes = Dictionary(items.flatMap(\.targets).map { ($0.path, $0.size) }, uniquingKeysWith: { first, _ in first })
+        let previous = await Task.detached(priority: .utility) { () -> [String: UInt64] in
+            let history = SizeHistory.standard
+            let before = history.previous(before: scannedAt)
+            try? history.record(sizes, at: scannedAt)
+            return before
+        }.value
+        growth = Dictionary(uniqueKeysWithValues: sizes.compactMap { path, size in
+            previous[path].map { (path, Int64(clamping: size) - Int64(clamping: $0)) }
+        })
     }
 
     func safety(forPath path: String) -> CleanupSafety? {
@@ -112,6 +157,7 @@ final class CleanupModel {
 
     func clearSelection() {
         selected.removeAll()
+        picked.removeAll()
     }
 
     func cleanSelected(skipping skipped: Set<String> = []) {
@@ -135,6 +181,7 @@ final class CleanupModel {
             let removed = results.filter(\.succeeded)
             let removedPaths = Set(removed.map(\.path))
             self.selected.subtract(removedPaths)
+            for path in removedPaths { self.picked[path] = nil }
             self.items = self.items.compactMap { item in
                 let remaining = item.targets.filter { !removedPaths.contains($0.path) }
                 return remaining.isEmpty ? nil : CleanupItem(rule: item.rule, targets: remaining)

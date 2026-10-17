@@ -27,7 +27,12 @@ struct DashboardCard<Content: View>: View {
                 Text(title).font(.headline)
                 Spacer()
                 if let action {
-                    Button(action.title, action: action.run).controlSize(.small)
+                    Button(action: action.run) {
+                        Text(action.title).font(.caption.weight(.semibold)).foregroundStyle(tint)
+                            .padding(.horizontal, 10).padding(.vertical, 4)
+                            .background(tint.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             content
