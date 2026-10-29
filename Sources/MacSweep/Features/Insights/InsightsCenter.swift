@@ -50,6 +50,11 @@ final class InsightsCenter {
         timeline.samples + (currentSlot.map { [$0] } ?? [])
     }
 
+    /// When the disk fills at the current rate, from the recorded free-space history.
+    var storageForecast: StorageForecast.Result? {
+        StorageForecast.forecast(samplesIncludingCurrent.filter { $0.diskFree > 0 }.map { ($0.time, $0.diskFree) })
+    }
+
     func recordNow(_ app: AppModel) {
         Task { await tick(app) }
     }

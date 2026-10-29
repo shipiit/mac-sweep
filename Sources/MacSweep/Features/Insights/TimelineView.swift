@@ -21,10 +21,10 @@ struct InsightsTimelineView: View {
                                 actionTitle: "Record now") { app.insights.recordNow(app) }
                         .frame(minHeight: 460)
                 } else {
-                    chart("CPU", points, value: { $0.cpu * 100 }, unit: "%", color: accent)
-                    chart("Memory used", points, value: { Double($0.memoryUsed) / 1_073_741_824 }, unit: "GB", color: .purple)
-                    chart("Disk free", points, value: { Double($0.diskFree) / 1_000_000_000 }, unit: "GB", color: .teal)
-                    chart("Download", points, value: { $0.downloadRate / 1_000_000 }, unit: "MB/s", color: .blue)
+                    TimelineSummary(points: points, rangeTitle: range.title)
+                    EqualHeightGrid(items: TimelineMetric.allCases, columns: 2) { metric in
+                        TimelineChartCard(metric: metric, points: points, color: metric == .cpu ? accent : metric.color)
+                    }
                     if !spikes.isEmpty { spikeList(spikes) }
                 }
             }
@@ -33,25 +33,6 @@ struct InsightsTimelineView: View {
         .navigationTitle("Timeline")
         .navigationSubtitle("CPU, memory, disk and network · a point every 5 minutes")
         .sectionTabs(TimelineRange.allCases, selection: $range, title: \.title)
-    }
-
-    private func chart(_ title: String, _ points: [TimelinePoint], value: @escaping (TimelinePoint) -> Double, unit: String, color: Color) -> some View {
-        Card {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text(title).font(.headline)
-                    Spacer()
-                    if let last = points.last { Text(String(format: "%.1f %@", value(last), unit)).monospacedDigit().foregroundStyle(.secondary) }
-                }
-                Chart(points) { point in
-                    LineMark(x: .value("Time", point.time), y: .value(title, value(point)), series: .value("Segment", point.segment))
-                        .foregroundStyle(color)
-                        .interpolationMethod(.monotone)
-                }
-                .chartYAxis { AxisMarks(position: .trailing) }
-                .frame(height: 120)
-            }
-        }
     }
 
     private func spikeList(_ spikes: [TimelinePoint]) -> some View {

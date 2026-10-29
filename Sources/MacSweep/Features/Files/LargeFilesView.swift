@@ -29,10 +29,14 @@ struct LargeFilesView: View {
     @State private var selection = Set<String>()
     @State private var sortOrder = [KeyPathComparator(\FileRow.size, order: .reverse)]
     @State private var trashNodes: [FileNode]?
-    @State private var showsInspector = true
+    /// Hidden until a file is clicked, so the list gets the full width.
+    @State private var showsInspector = false
+    @State private var inspectedPath: String?
+    @State private var grouped = true
+    @State private var reviewing: [FileNode]?
 
     private var inspected: FileNode? {
-        guard selection.count == 1, let path = selection.first else { return nil }
+        guard let path = inspectedPath ?? (selection.count == 1 ? selection.first : nil) else { return nil }
         return app.disk.result?.root.node(at: path) ?? app.disk.result?.largeFiles.first { $0.path == path }
     }
 
@@ -44,6 +48,8 @@ struct LargeFilesView: View {
                     summary(rows)
                     if rows.isEmpty {
                         ContentUnavailableView.search(text: search)
+                    } else if grouped {
+                        LargeFilesGroupedList(rows: rows, home: app.home, selection: $selection, inspected: $inspectedPath)
                     } else {
                         table(rows)
                     }
@@ -60,6 +66,8 @@ struct LargeFilesView: View {
             }
         }
         .navigationTitle("Large & Hidden Files")
+        .onChange(of: inspectedPath) { _, path in if path != nil { showsInspector = true } }
+        .onChange(of: selection) { _, paths in if grouped == false, paths.count == 1 { showsInspector = true } }
         .searchable(text: $search, prompt: "Name or path")
         .toolbar {
             ToolbarItem(placement: .principal) {
@@ -72,7 +80,9 @@ struct LargeFilesView: View {
                 Toggle("Hidden only", systemImage: "eye.slash", isOn: $hiddenOnly)
                     .help("Only items inside dot-folders or flagged hidden")
                 Toggle("Older than 1 year", systemImage: "clock.arrow.circlepath", isOn: $olderThanYear)
-                Button("Move to Trash", systemImage: "trash") { trashNodes = selectedNodes }
+                Toggle("Group by kind", systemImage: "square.grid.3x1.below.line.grid.1x2", isOn: $grouped)
+                    .help("Group files by what they are, or show one sortable table")
+                Button("Move to Trash", systemImage: "trash") { reviewing = selectedNodes }
                     .disabled(selectedNodes.isEmpty)
                 Button("Inspector", systemImage: "sidebar.trailing") { showsInspector.toggle() }
             }
@@ -80,6 +90,12 @@ struct LargeFilesView: View {
         .inspector(isPresented: $showsInspector) {
             FileInspector(node: inspected, home: app.home) { trashNodes = [$0] }
                 .inspectorColumnWidth(min: 280, ideal: 320, max: 420)
+        }
+        .sheet(item: Binding(get: { reviewing.map(ReviewBatch.init) }, set: { reviewing = $0?.nodes })) { batch in
+            TrashReviewSheet(nodes: batch.nodes, home: app.home) {
+                app.cleanup.remove(batch.nodes.map { CleanupTarget(path: $0.path, size: $0.size) }, mode: .trash)
+                selection.removeAll()
+            }
         }
         .trashConfirmation($trashNodes) { nodes in
             app.cleanup.remove(nodes.map { CleanupTarget(path: $0.path, size: $0.size) }, mode: .trash)
@@ -93,7 +109,10 @@ struct LargeFilesView: View {
         HStack {
             Text("\(rows.count) items · \(Format.bytes(rows.reduce(0) { $0 + $1.size }))")
             if !selection.isEmpty {
-                Text("· \(selection.count) selected").foregroundStyle(.secondary)
+                let chosen = selectedNodes
+                Text("· \(chosen.count) selected (\(Format.bytes(chosen.reduce(0) { $0 + $1.size })))").foregroundStyle(.secondary)
+                Button("Review & Move to Trash…") { reviewing = chosen }.controlSize(.small).disabled(chosen.isEmpty)
+                Button("Clear") { selection.removeAll() }.controlSize(.small)
             }
             Spacer()
             Text(kind == .files ? "Files over 10 MB" : "Folders over 1 MB").foregroundStyle(.secondary)
@@ -181,4 +200,10 @@ struct LargeFilesView: View {
             .filter { query.isEmpty || $0.node.path.lowercased().contains(query) }
             .sorted(using: sortOrder)
     }
+}
+
+/// Wraps the nodes waiting for review so the sheet can be driven by an optional item.
+private struct ReviewBatch: Identifiable {
+    let nodes: [FileNode]
+    var id: String { nodes.map(\.path).joined(separator: "|") }
 }

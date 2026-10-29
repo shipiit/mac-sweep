@@ -17,6 +17,8 @@ run: app
 
 # Copies to /Applications so the Full Disk Access grant sticks to a stable path.
 install: app
+	osascript -e 'tell application id "com.rahulraj.macsweep" to quit' 2>/dev/null || true
+	sleep 1
 	rm -rf /Applications/MacSweep.app
 	cp -R build/MacSweep.app /Applications/MacSweep.app
 	open /Applications/MacSweep.app

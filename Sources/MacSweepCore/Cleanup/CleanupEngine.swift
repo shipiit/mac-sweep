@@ -91,6 +91,26 @@ public enum CleanupEngine {
                     return modified < cutoff
                 }
                 .map { CleanupTarget(path: $0.path, size: $0.size, modified: $0.modified) }
+
+        case .matching(let raw, let prefixes, let suffixes):
+            let path = PathTools.expand(raw, home: home)
+            guard let node = tree.node(at: path) else { return [] }
+            return node.children
+                .filter { $0.kind == .directory || $0.kind == .file }
+                .filter { child in prefixes.contains { child.name.hasPrefix($0) } || suffixes.contains { child.name.hasSuffix($0) } }
+                .map { CleanupTarget(path: $0.path, size: $0.size, modified: $0.modified) }
+
+        case .olderVersions(let raw, let keep):
+            let path = PathTools.expand(raw, home: home)
+            guard let node = tree.node(at: path) else { return [] }
+            let old = Set(VersionedFolders.olderVersions(node.children.filter { $0.kind != .aggregate }.map(\.name), keep: keep))
+            return node.children.filter { old.contains($0.name) }.map { CleanupTarget(path: $0.path, size: $0.size, modified: $0.modified) }
+
+        case .duplicateVersions(let raw):
+            let path = PathTools.expand(raw, home: home)
+            guard let node = tree.node(at: path) else { return [] }
+            let old = Set(VersionedFolders.duplicateExtensions(node.children.filter(\.isDirectory).map(\.name)))
+            return node.children.filter { old.contains($0.name) }.map { CleanupTarget(path: $0.path, size: $0.size, modified: $0.modified) }
         }
     }
 }

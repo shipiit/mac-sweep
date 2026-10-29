@@ -20,6 +20,7 @@ struct SettingsView: View {
 private struct GeneralSettings: View {
     @AppStorage("scanSchedule") private var schedule: ScanSchedule = .nightly
     @AppStorage("showNotchHUD") private var showNotch = true
+    @AppStorage(SettingsKeys.autoCleanWeekly) private var autoClean = false
     @AppStorage(SettingsKeys.liveDockIcon) private var liveDockIcon = true
     @AppStorage(SettingsKeys.menuBarStyle) private var menuBarStyle: MenuBarStyle = .cpuAndMemory
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -31,6 +32,11 @@ private struct GeneralSettings: View {
                 Toggle("Open MacSweep at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, enabled in setLaunchAtLogin(enabled) }
                 if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
+            }
+            Section("Automatic cleanup") {
+                Toggle("Clean safe junk every week", isOn: $autoClean)
+                Text("Only items marked Safe to remove (caches, build output, update leftovers), never anything in use or marked Review first. They go to the Trash, and you get a notification with the amount.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Section("Disk") {
                 Picker("Automatic scan", selection: $schedule) {
@@ -61,75 +67,7 @@ private struct GeneralSettings: View {
     }
 }
 
-private struct AppearanceSettings: View {
-    @Environment(\.appAccent) private var accentColor
-    @AppStorage(SettingsKeys.theme) private var theme: ThemeChoice = .system
-    @AppStorage(SettingsKeys.accent) private var accent: AccentChoice = .system
-    @AppStorage(SettingsKeys.backgroundStyle) private var backgroundStyle: BackgroundStyle = .plain
-    @AppStorage(SettingsKeys.backgroundHex) private var backgroundHex = ThemePreset.teal.hex
-    @AppStorage(SettingsKeys.sidebarHex) private var sidebarHex = ""
-
-    var body: some View {
-        Form {
-            Section("Theme") {
-                HStack(spacing: 16) {
-                    ForEach(ThemeChoice.allCases) { choice in
-                        Button { theme = choice } label: {
-                            VStack(spacing: 6) {
-                                ThemeSwatch(choice: choice)
-                                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(theme == choice ? accentColor : .clear, lineWidth: 3))
-                                Text(choice.rawValue).font(.caption).fontWeight(theme == choice ? .semibold : .regular)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("\(choice.rawValue) theme")
-                        .accessibilityAddTraits(theme == choice ? .isSelected : [])
-                    }
-                }
-                .onChange(of: theme) { _, value in ThemeApplier.apply(value.rawValue) }
-            }
-            Section("Accent colour") {
-                HStack(spacing: 10) {
-                    ForEach(AccentChoice.allCases) { choice in
-                        Button { accent = choice } label: {
-                            Circle()
-                                .fill(choice.color.map { AnyShapeStyle($0) }
-                                      ?? AnyShapeStyle(AngularGradient(colors: [.red, .yellow, .green, .blue, .purple, .red], center: .center)))
-                                .frame(width: 22, height: 22)
-                                .overlay(Circle().strokeBorder(.white, lineWidth: accent == choice ? 3 : 0))
-                                .shadow(radius: accent == choice ? 2 : 0)
-                        }
-                        .buttonStyle(.plain)
-                        .help(choice == .system ? "Follow macOS" : choice.rawValue.capitalized)
-                        .accessibilityLabel(choice == .system ? "System accent" : choice.rawValue)
-                        .accessibilityAddTraits(accent == choice ? .isSelected : [])
-                    }
-                }
-            }
-            Section("Window") {
-                Picker("Background", selection: $backgroundStyle) {
-                    ForEach(BackgroundStyle.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                if backgroundStyle != .plain {
-                    ColorChoiceRow(title: "Background colour", hex: $backgroundHex)
-                }
-                ColorChoiceRow(title: "Sidebar highlight", hex: $sidebarHex, allowsAccent: true)
-                Button("Reset Appearance") {
-                    theme = .system
-                    accent = .system
-                    backgroundStyle = .plain
-                    backgroundHex = ThemePreset.teal.hex
-                    sidebarHex = ""
-                    ThemeApplier.apply(ThemeChoice.system.rawValue)
-                }
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
-private struct ThemeSwatch: View {
+struct ThemeSwatch: View {
     @Environment(\.appAccent) private var accent
     let choice: ThemeChoice
 

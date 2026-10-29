@@ -2,7 +2,7 @@ import MacSweepCore
 import SwiftUI
 
 struct DuplicatesView: View {
-    @State private var model = DuplicatesModel()
+    @State private var model = DuplicatesModel.shared
     @Environment(\.appAccent) private var accent
 
     var body: some View {
@@ -146,4 +146,9 @@ struct TrashBar: View {
             Button("Cancel", role: .cancel) {}
         } message: { Text("At least one copy of every file is always kept. You can restore from the Trash.") }
     }
+}
+
+extension DuplicatesModel {
+    /// One instance for the app's lifetime, so results stay when you switch pages; Rescan refreshes them.
+    static let shared = DuplicatesModel()
 }

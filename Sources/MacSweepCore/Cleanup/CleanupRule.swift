@@ -19,6 +19,12 @@ public enum CleanupTargetSpec: Sendable {
     case nested(in: String, names: [String], signature: [String])
     /// Files in a directory whose extension matches.
     case files(in: String, extensions: [String], olderThanDays: Int?)
+    /// Children of a directory whose name starts with one of `prefixes` or ends with one of `suffixes`.
+    case matching(in: String, prefixes: [String], suffixes: [String])
+    /// Version-named children of a directory except the newest `keep` (old CLI builds kept for rollback).
+    case olderVersions(in: String, keep: Int)
+    /// Editor extensions installed in several versions: every version but the newest of each extension.
+    case duplicateVersions(in: String)
 }
 
 public struct CleanupRule: Identifiable, Sendable {

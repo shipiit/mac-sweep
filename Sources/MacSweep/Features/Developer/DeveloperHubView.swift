@@ -2,7 +2,7 @@ import MacSweepCore
 import SwiftUI
 
 struct DeveloperHubView: View {
-    @State private var model = DeveloperModel()
+    @State private var model = DeveloperModel.shared
     @State private var tab: DevTab = .overview
 
     var body: some View {
@@ -137,4 +137,9 @@ private struct DevOverview: View {
         case .overview: return ""
         }
     }
+}
+
+extension DeveloperModel {
+    /// One instance for the app's lifetime, so results stay when you switch pages; Rescan refreshes them.
+    static let shared = DeveloperModel()
 }

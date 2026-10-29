@@ -13,7 +13,10 @@ struct RootView: View {
             .background { if backgroundStyle != .plain { AppBackground() } }
             .navigationSplitViewColumnWidth(min: 240, ideal: 260)
         } detail: {
-            detail
+            VStack(spacing: 0) {
+                AreaTabBar()
+                detail
+            }
                 .frame(minWidth: 760, minHeight: 560)
                 .background(AppBackground())
         }
@@ -50,6 +53,11 @@ struct RootView: View {
         case .network: NetworkMonitorView()
         case .sharing: SharingAuditView()
         case .backups: BackupStatusView()
+        case .gitSlimming: ScrollView { GitSlimmingView().padding(20) }.navigationTitle("Git Repos")
+        case .appFootprint: ScrollView { AppFootprintView().padding(20) }.navigationTitle("App Footprint")
+        case .browserProfiles: BrowserProfilesView().navigationTitle("Browser Profiles")
+        case .memoryGuard: MemoryGuardView()
+        case .startupGuard: StartupGuardView(startupGuard: app.startupGuard).navigationTitle("Startup Guard")
         case .timeline: InsightsTimelineView()
         case .growth: GrowthView()
         case .storage: StorageView()
@@ -78,31 +86,45 @@ struct SidebarRow: View {
     let badge: String?
     let isSelected: Bool
     let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            SidebarItemLabel(symbol: section.symbol, title: section.rawValue, badge: badge, isSelected: isSelected)
+        }
+        .buttonStyle(.plain)
+        .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// Sidebar row look: soft highlight with an accent bar on the left, counts in small rounded badges.
+struct SidebarItemLabel: View {
+    let symbol: String
+    let title: String
+    let badge: String?
+    let isSelected: Bool
     @Environment(\.appAccent) private var accent
     @AppStorage(SettingsKeys.sidebarHex) private var sidebarHex = ""
 
     var body: some View {
         let highlight = Color(hex: sidebarHex) ?? accent
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: section.symbol)
-                    .frame(width: 20)
-                    .foregroundStyle(isSelected ? .white : highlight)
-                Text(section.rawValue)
-                    .foregroundStyle(isSelected ? .white : .primary)
-                Spacer(minLength: 4)
-                if let badge {
-                    Text(badge).font(.caption.monospacedDigit())
-                        .foregroundStyle(isSelected ? .white.opacity(0.85) : .secondary)
-                }
+        HStack(spacing: 10) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .medium)).frame(width: 20)
+                .foregroundStyle(isSelected ? highlight : .secondary)
+            Text(title).fontWeight(isSelected ? .semibold : .regular).lineLimit(1)
+            Spacer(minLength: 4)
+            if let badge {
+                Text(badge).font(.caption.weight(.semibold).monospacedDigit()).foregroundStyle(.secondary)
+                    .padding(.horizontal, 7).padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.18), in: Capsule())
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(isSelected ? highlight : .clear, in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(isSelected ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .overlay(alignment: .leading) {
+            if isSelected { Capsule().fill(highlight).frame(width: 3, height: 18).offset(x: -6) }
+        }
+        .contentShape(Rectangle())
     }
 }

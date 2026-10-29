@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Time Machine at a glance: how old the latest backup is, where it goes, and what it leaves out.
 struct BackupStatusView: View {
-    @State private var model = BackupStatusModel()
+    @State private var model = BackupStatusModel.shared
 
     var body: some View {
         ScrollView {
@@ -117,4 +117,9 @@ private struct BackupFoldersCard: View {
             }
         }
     }
+}
+
+extension BackupStatusModel {
+    /// One instance for the app's lifetime, so results stay when you switch pages; Rescan refreshes them.
+    static let shared = BackupStatusModel()
 }

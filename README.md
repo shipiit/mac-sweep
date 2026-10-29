@@ -8,7 +8,7 @@ SwiftUI · macOS 15+ · Apple Silicon · no third-party dependencies · everythi
 
 [**Explore the website**](https://shipiit.github.io/mac-sweep-website/) · [**⬇ Download the latest .dmg**](https://github.com/shipiit/mac-sweep/releases/latest)
 
-![Version](https://img.shields.io/github/v/release/shipiit/mac-sweep?label=version) ![macOS](https://img.shields.io/badge/macOS-15%2B-black) ![Swift](https://img.shields.io/badge/Swift-6-orange) ![Tests](https://img.shields.io/badge/tests-510%2B-brightgreen) ![Dependencies](https://img.shields.io/badge/dependencies-0-blue)
+![Version](https://img.shields.io/github/v/release/shipiit/mac-sweep?label=version) ![macOS](https://img.shields.io/badge/macOS-15%2B-black) ![Swift](https://img.shields.io/badge/Swift-6-orange) ![Tests](https://img.shields.io/badge/tests-600%2B-brightgreen) ![Dependencies](https://img.shields.io/badge/dependencies-0-blue)
 
 </div>
 
@@ -59,9 +59,12 @@ mindmap
 ### 🧹 Clean up
 | | |
 |---|---|
-| **Smart Scan** | One button checks junk, security, speed and apps, then cleans up step by step in an "Optimizing your Mac" view with a Stop ring. |
-| **Space & Junk** | A treemap of every folder, hidden ones included. Recommendations are split into *Safe to remove* and *Review first*, each explaining what it is and what happens if deleted. |
-| **Large & Hidden Files** | The biggest files and folders, filterable to hidden-only or older than a year. |
+| **Smart Scan** | One button checks junk, security, speed and apps in about 20 seconds, then cleans up step by step in an "Optimizing your Mac" view with a Stop ring. |
+| **Space & Junk** | A treemap of every folder, hidden ones included, with a folder panel to tick items anywhere. Recommendations are split into *Safe to remove* and *Review first*; growth badges show what grew since the last scan, and a forecast says when the disk would fill at the current rate. Finds app update leftovers, old CLI and editor-extension versions, unfinished runtime downloads, AI model caches and more. |
+| **Cleanup script & tool commands** | Generates a script that uses each tool's own clean command (`npm cache clean`, `pnpm store prune`, `brew cleanup`…) and can run them for you with a live log. Review-first items never run. |
+| **Weekly auto-clean** | Opt-in: moves safe junk (never anything in use) to the Trash once a week and tells you how much. |
+| **Large & Hidden Files** | The biggest files, grouped by kind (AI sessions & models, developer files, app data, media, installers, macOS assets) with Safe / Think first / Keep labels, what deleting each causes, and a review sheet before anything moves to the Trash. |
+| **Browser Profiles** | Size of every Chrome, Brave, Edge, Arc and Vivaldi profile; clean caches per profile (never logins, cookies or bookmarks). |
 | **Duplicates & Archive** | Byte-for-byte duplicates (SHA-256; one copy is always kept), similar photos via on-device Vision, and old projects zipped to an external drive or iCloud, verified before the original can go. |
 | **Mail, Trash, Shredder, Privacy** | Mail attachment copies, every Trash bin, secure delete, and browser history, cookies and caches (passwords and bookmarks are never touched). |
 
@@ -81,13 +84,18 @@ mindmap
 |---|---|
 | **Processes & Memory** | Activity-Monitor-accurate memory and CPU, a leak flag for steadily growing apps, idle apps with optional auto-quit. |
 | **Optimization & Maintenance** | A ranked advisor with one-click fixes; flush DNS, rebuild Launch Services, reindex Spotlight and more. |
-| **Startup Items** | Login items, launch agents and daemons, with stop, disable and enable. |
+| **Memory Guard** | When memory stays under pressure, tells you which idle apps use the most or quits them politely (like ⌘Q, at most three, never the app you're using). Shows what's using your memory and what keeps growing. |
+| **Startup Items & Startup Guard** | Login items, launch agents and daemons with stop, disable and enable. The opt-in guard holds anything new until you approve it. |
 
 ### 🛠 Developer
 | | |
 |---|---|
 | **Developer hub** | Docker storage and prune, Homebrew outdated packages and cleanup, Node/Python/Ruby versions, Xcode DerivedData and simulators, every `node_modules` in your home folder, and dev services (Postgres, Redis…) with start, stop and logs. |
+| **Git Repos** | Repositories with the biggest `.git` folders; filter, sort, and compact safely (`git gc`, reflogs kept) or prune the LFS cache. Repos in use are skipped. |
 | **Ports** | Every listening port with the project folder and command that started it; open, copy or stop it. |
+
+### 📦 Applications
+Uninstaller with leftovers, Updater, App Usage, and **App Footprint**: each app's real size including caches, support data and containers, with *Clear cache* or *Reset app* (refused while the app runs; Apple apps are never touched).
 
 ### 🤖 AI Usage
 Claude Code and Codex tokens and API-equivalent cost by model, project and session. It shows live 5-hour and weekly limits and the service status of both tools, and updates within seconds of each message. Real Claude plan limits are an **opt-in**, read-only setting.
@@ -96,7 +104,7 @@ Claude Code and Codex tokens and API-equivalent cost by model, project and sessi
 **Smart Alerts** notify you about low disk, memory leaks, runaway CPU, overheating, new login items and a big Trash. A **14-day Timeline** shows CPU, memory, disk and network, with spikes explained. **What Grew** compares two disk scans.
 
 ### 🖥 Always there
-A two-line menu bar item, a notch HUD that expands on hover (System, Apps, Ports, AI, Clean), a live Dock icon, themes and accent colours. The sidebar folds, and any page can be hidden in Settings → Sidebar.
+A two-line menu bar item, a notch HUD that expands on hover (System, Apps, Ports, AI, Clean, with charts), and a live Dock icon. A short sidebar (main pages, one row per area whose pages open as tabs, a storage card), pages hideable in Settings → Sidebar, and an Appearance pane with a live preview of theme, accent and background. Results are kept between visits, so you scan once and rescan only when you want fresh numbers.
 
 ---
 
@@ -163,7 +171,7 @@ flowchart LR
     Core --> OS[(macOS APIs<br/>fts · libproc · Security · FSEvents)]
 ```
 
-All logic lives in `MacSweepCore` with 510+ tests; the app target is thin views and models.
+All logic lives in `MacSweepCore` with 600+ tests; the app target is thin views and models.
 
 ## Install
 
@@ -177,10 +185,12 @@ All logic lives in `MacSweepCore` with 510+ tests; the app target is thin views 
 ## Build from source
 
 ```sh
-make test      # 510+ unit tests
+make test      # 600+ unit tests
 make app       # build/MacSweep.app (ad-hoc signed)
 make dmg       # build/MacSweep.dmg
-make install   # build and copy to /Applications
+make install   # build, quit the running copy, install to /Applications and relaunch
+bash scripts/make-signing-cert.sh   # optional, once: a local signing identity so macOS keeps
+                                    # Full Disk Access and Keychain approvals across your own builds
 ```
 
 Requires Xcode 16 / Swift 6 toolchain on macOS 15 or later.

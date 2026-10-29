@@ -24,6 +24,7 @@ struct TranscriptStorageCard: View {
                     let size = targets.reduce(0) { $0 + $1.size }
                     HStack {
                         Text("\(targets.count) transcripts · \(Format.bytes(size))").font(.title3.weight(.semibold))
+                        Text("Sessions you've named in AI Usage are always kept.").font(.caption).foregroundStyle(.secondary)
                         Spacer()
                         Button("Move to Trash…") { confirm = true }.disabled(targets.isEmpty)
                     }
@@ -37,7 +38,7 @@ struct TranscriptStorageCard: View {
         }
         .task(id: days) {
             let days = days
-            targets = await Task.detached(priority: .utility) { TranscriptCleanup.old(olderThanDays: days) }.value
+            targets = await Task.detached(priority: .utility) { TranscriptCleanup.old(olderThanDays: days, keeping: Set(SessionNames.all().keys)) }.value
         }
         .confirmationDialog("Move \(targets?.count ?? 0) old transcripts to the Trash?", isPresented: $confirm, titleVisibility: .visible) {
             Button("Move to Trash", role: .destructive) {
@@ -46,7 +47,7 @@ struct TranscriptStorageCard: View {
                 targets = nil
                 Task { await app.ai.refresh() }
                 let days = days
-                Task { targets = await Task.detached { TranscriptCleanup.old(olderThanDays: days) }.value }
+                Task { targets = await Task.detached { TranscriptCleanup.old(olderThanDays: days, keeping: Set(SessionNames.all().keys)) }.value }
             }
         }
     }

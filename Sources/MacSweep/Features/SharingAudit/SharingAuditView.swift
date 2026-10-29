@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Wi-Fi, Bluetooth, sharing services, firewall and AirDrop, each with a plain verdict and a fix link.
 struct SharingAuditView: View {
-    @State private var model = SharingAuditModel()
+    @State private var model = SharingAuditModel.shared
 
     var body: some View {
         ScrollView {
@@ -65,4 +65,9 @@ private struct SharingFindingCard: View {
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.separator.opacity(0.5)))
         .accessibilityElement(children: .contain)
     }
+}
+
+extension SharingAuditModel {
+    /// One instance for the app's lifetime, so results stay when you switch pages; Rescan refreshes them.
+    static let shared = SharingAuditModel()
 }

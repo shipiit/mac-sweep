@@ -120,20 +120,9 @@ struct SmartScanView: View {
         states = Dictionary(uniqueKeysWithValues: SmartScanStep.allCases.map { ($0, StepState.waiting) })
         Task {
             step = "Looking for junk…"
-            states[.junk] = .running("Starting…")
-            let isStale = app.disk.result.map { Date().timeIntervalSince($0.finishedAt) > 3_600 } ?? true
-            // A slow scheduled scan is restarted at normal priority so Smart Scan doesn't wait on it.
-            if (isStale && !app.disk.isScanning) || app.disk.isBackgroundScan {
-                app.disk.scan(root: app.disk.result?.root.path ?? app.home)
-            }
-            while app.disk.isScanning {
-                if let progress = app.disk.progress {
-                    states[.junk] = .running("\(Format.count(progress.files)) files · \(Format.path(progress.currentPath))")
-                }
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-            if !isStale { states[.junk] = .running("Using scan from \(Format.relative(app.disk.result?.finishedAt))") }
-            while app.cleanup.isEvaluating { try? await Task.sleep(for: .milliseconds(100)) }
+            states[.junk] = .running("Measuring caches, build output, old versions and leftovers…")
+            // A targeted scan of known junk locations takes about a minute; the full disk map isn't needed here.
+            await app.cleanup.quickScan()
             states[.junk] = .done("\(Format.bytes(app.cleanup.total(.safe))) safe to remove")
 
             step = "Checking security…"

@@ -47,6 +47,7 @@ struct StorageView: View {
 }
 
 struct StorageStats: View {
+    @Environment(AppModel.self) private var app
     let disk: DiskModel
     let cleanup: CleanupModel
     let result: ScanResult
@@ -56,7 +57,8 @@ struct StorageStats: View {
         let used = disk.volume?.used ?? 0
         let unscanned = used > result.root.size ? used - result.root.size : 0
         StatStrip {
-            StatTile(title: "Free now", value: Format.bytes(available), detail: "of \(Format.bytes(disk.volume?.total ?? 0))")
+            StatTile(title: "Free now", value: Format.bytes(available), detail: forecastText ?? "of \(Format.bytes(disk.volume?.total ?? 0))",
+                     dot: (app.insights.storageForecast?.daysUntilFull ?? .infinity) < 30 ? .orange : nil)
             StatTile(
                 title: "Free after cleanup",
                 value: Format.bytes(available + cleanup.selectedSize),
@@ -111,5 +113,12 @@ struct ScanToolbar: ToolbarContent {
         panel.showsHiddenFiles = true
         panel.prompt = "Scan"
         if panel.runModal() == .OK, let url = panel.url { disk.scan(root: url.path) }
+    }
+}
+
+extension StorageStats {
+    /// "Full in about 6 weeks at this rate", when free space has been shrinking.
+    fileprivate var forecastText: String? {
+        app.insights.storageForecast?.daysUntilFull.map { "Full \(StorageForecast.phrase(days: $0).replacingOccurrences(of: "in about ", with: "in ~"))" }
     }
 }

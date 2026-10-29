@@ -32,8 +32,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>MacSweep</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>1.2.0</string>
-  <key>CFBundleVersion</key><string>3</string>
+  <key>CFBundleShortVersionString</key><string>1.3.0</string>
+  <key>CFBundleVersion</key><string>4</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
   <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
   <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -43,5 +43,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --sign - "$APP" >/dev/null
+# A stable local identity (scripts/make-signing-cert.sh) keeps permissions across builds; otherwise sign ad-hoc.
+if security find-certificate -c "MacSweep Local Signing" >/dev/null 2>&1; then
+  codesign --force --sign "MacSweep Local Signing" "$APP" >/dev/null
+else
+  codesign --force --sign - "$APP" >/dev/null
+fi
 echo "Built $APP"

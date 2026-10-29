@@ -11,6 +11,10 @@ struct StorageOverviewCard: View {
                     HStack(alignment: .firstTextBaseline) {
                         Text(Format.bytes(volume.available)).font(.system(size: 26, weight: .semibold, design: .rounded))
                         Text("free of \(Format.bytes(volume.total))").foregroundStyle(.secondary)
+                        if let days = app.insights.storageForecast?.daysUntilFull {
+                            Label("Full \(StorageForecast.phrase(days: days))", systemImage: "chart.line.downtrend.xyaxis")
+                                .font(.caption).foregroundStyle(days < 30 ? .orange : .secondary)
+                        }
                     }
                     ProgressView(value: Double(volume.used), total: Double(max(volume.total, 1))).tint(.blue)
                     if app.cleanup.total(.safe) > 0 {

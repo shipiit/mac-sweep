@@ -23,12 +23,17 @@ final class AppModel {
     let ai = AIUsageModel()
     let insights = InsightsCenter()
     /// Pages that show per-process numbers and so need 3-second sampling.
-    static let liveProcessPages: Set<SidebarSection> = [.processes, .overview, .ports, .optimization]
+    static let liveProcessPages: Set<SidebarSection> = [.processes, .overview, .ports, .optimization, .memoryGuard]
     let threats = ThreatCenter()
+    let startupGuard = StartupGuard()
+    let memoryGuard = MemoryGuardCenter()
+    /// The page last opened in each sidebar area, so clicking the area returns there.
+    var lastInArea: [String: SidebarSection] = [:]
     /// Reopens on the page used last (`-lastSection "Developer"` on the command line also works).
     var section: SidebarSection? = UserDefaults.standard.string(forKey: "lastSection").flatMap(SidebarSection.init(rawValue:)) ?? .smartScan {
         didSet {
             UserDefaults.standard.set(section?.rawValue, forKey: "lastSection")
+            if let section { lastInArea[SidebarSection.group(of: section)] = section }
             processes.isLive = Self.liveProcessPages.contains(section ?? .smartScan)
         }
     }
@@ -49,6 +54,18 @@ final class AppModel {
         ai.start()
         insights.start(app: self)
         threats.start()
+        startupGuard.start()
+        memoryGuard.start(app: self)
+        // Junk numbers for Smart Scan and Space & Junk without waiting for a full disk scan, then the
+        // opt-in weekly cleanup, checked every 6 hours (a date comparison when it's off or not due).
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(30))
+            if let self, self.cleanup.items.isEmpty { await self.cleanup.quickScan() }
+            while !Task.isCancelled {
+                await self?.cleanup.autoCleanIfDue()
+                try? await Task.sleep(for: .seconds(6 * 3_600))
+            }
+        }
         // A quiet audit shortly after launch keeps the sidebar's security badge current.
         Task { [weak self] in
             try? await Task.sleep(for: .seconds(20))
@@ -118,6 +135,11 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     case network = "Network Monitor"
     case sharing = "Sharing & Wi-Fi"
     case backups = "Backups"
+    case gitSlimming = "Git Repos"
+    case appFootprint = "App Footprint"
+    case browserProfiles = "Browser Profiles"
+    case startupGuard = "Startup Guard"
+    case memoryGuard = "Memory Guard"
     case timeline = "Timeline"
     case growth = "What Grew"
 
@@ -138,6 +160,11 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .network: "point.3.connected.trianglepath.dotted"
         case .sharing: "person.2.wave.2"
         case .backups: "clock.arrow.circlepath"
+        case .gitSlimming: "arrow.triangle.branch"
+        case .appFootprint: "square.stack.3d.down.right"
+        case .browserProfiles: "person.crop.rectangle.stack"
+        case .startupGuard: "lock.shield"
+        case .memoryGuard: "memorychip.fill"
         case .timeline: "chart.xyaxis.line"
         case .growth: "chart.bar.doc.horizontal"
         case .storage: "internaldrive"
@@ -159,12 +186,17 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     }
 
     static let groups: [(title: String, sections: [SidebarSection])] = [
-        ("", [.smartScan, .overview, .ai]),
-        ("Cleanup", [.storage, .files, .duplicates, .mail, .trash, .shredder, .privacy]),
+        ("", [.smartScan, .overview, .ai, .ports]),
+        ("Cleanup", [.storage, .files, .duplicates, .browserProfiles, .privacy, .mail, .trash, .shredder]),
         ("Protection", [.malware, .security, .permissions, .network, .sharing, .backups, .extensions]),
-        ("Performance", [.optimization, .maintenance, .processes, .startup]),
-        ("Developer", [.developer, .ports]),
-        ("Applications", [.uninstaller, .updater, .usage]),
+        ("Performance", [.processes, .memoryGuard, .optimization, .maintenance, .startup, .startupGuard]),
+        ("Developer", [.developer, .gitSlimming]),
+        ("Applications", [.uninstaller, .appFootprint, .updater, .usage]),
         ("Insights", [.systemInfo, .alerts, .timeline, .growth]),
     ]
+
+    /// The area (sidebar row) a page belongs to; empty for the top-level pages.
+    static func group(of section: SidebarSection) -> String {
+        groups.first { $0.sections.contains(section) }?.title ?? ""
+    }
 }

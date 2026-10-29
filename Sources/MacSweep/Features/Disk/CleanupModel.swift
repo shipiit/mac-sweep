@@ -79,6 +79,48 @@ final class CleanupModel {
     var selectedItemCount: Int { items.filter { selectionState($0) != .none }.count + picked.count }
     var selectionIncludesReview: Bool { items(.review).contains { selectionState($0) != .none } }
 
+    private(set) var isQuickScanning = false
+    private(set) var lastQuickScan: Date?
+
+    /// Finds junk in about a minute by measuring only known locations, no full disk scan needed.
+    func quickScan() async {
+        guard !isQuickScanning else { return }
+        isQuickScanning = true
+        isEvaluating = true
+        let home = home
+        let found = await Task.detached(priority: .userInitiated) { await QuickJunkScanner.scan(home: home) }.value
+        apply(found.items)
+        isEvaluating = false
+        isQuickScanning = false
+        lastQuickScan = Date()
+        await updateGrowth(scannedAt: Date())
+        MemoryRelief.release()
+    }
+
+    private func apply(_ items: [CleanupItem]) {
+        self.items = items
+        let valid = Set(items.flatMap(\.targets).map(\.path))
+        selected.formIntersection(valid)
+        cleanableIndex = Dictionary(items.flatMap { item in item.targets.map { ($0.path, item.rule.safety) } }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// Weekly, opt-in: moves safe junk (never review-first items, never anything in use) to the Trash and notifies.
+    func autoCleanIfDue() async {
+        let defaults = UserDefaults.standard
+        guard defaults.bool(forKey: SettingsKeys.autoCleanWeekly), !isCleaning,
+              AutoClean.isDue(lastRun: defaults.object(forKey: SettingsKeys.autoCleanLastRun) as? Date) else { return }
+        await quickScan()
+        let safe = items.filter { $0.rule.safety == .safe }.flatMap(\.targets)
+        let conflicts = await InUseCheck.run(targets: safe.map(\.path), home: home)
+        let targets = AutoClean.targets(items, inUse: Set(conflicts.map(\.targetPath)))
+        defaults.set(Date(), forKey: SettingsKeys.autoCleanLastRun)
+        guard !targets.isEmpty else { return }
+        let results = await removeNow(targets, mode: .trash)
+        let freed = results.filter(\.succeeded).reduce(0) { $0 + $1.size }
+        AlertNotifier.post([SmartAlert(rule: .largeTrash, key: "auto-clean", severity: .info, title: "Weekly cleanup done",
+                                       message: "Moved \(Format.bytes(freed)) of safe junk to the Trash. Empty the Trash to get the space back.", date: Date())])
+    }
+
     func evaluate(_ result: ScanResult?) {
         evaluation?.cancel()
         guard let result else {

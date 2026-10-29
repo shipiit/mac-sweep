@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Which apps can use the camera, microphone, screen, files and input, read from TCC.db (read-only).
 struct PrivacyPermissionsView: View {
-    @State private var model = PrivacyPermissionsModel()
+    @State private var model = PrivacyPermissionsModel.shared
 
     var body: some View {
         Group {
@@ -79,4 +79,9 @@ struct PrivacyPermissionsView: View {
             }
         }
     }
+}
+
+extension PrivacyPermissionsModel {
+    /// One instance for the app's lifetime, so results stay when you switch pages; Rescan refreshes them.
+    static let shared = PrivacyPermissionsModel()
 }

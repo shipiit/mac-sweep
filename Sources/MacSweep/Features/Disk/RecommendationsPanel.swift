@@ -35,7 +35,10 @@ struct RecommendationsPanel: View {
             CleanConfirmSheet(cleanup: cleanup)
         }
         .sheet(isPresented: $showsScript) {
-            CleanupScriptSheet(script: CleanupScript.make(cleanup.selectedTargets, home: cleanup.home, reviewFirst: cleanup.reviewPaths))
+            CleanupScriptSheet(script: CleanupScript.make(cleanup.selectedTargets, home: cleanup.home, reviewFirst: cleanup.reviewPaths),
+                               commands: ToolCleanCommands.plan(cleanup.selectedTargets, home: cleanup.home, reviewFirst: cleanup.reviewPaths)) {
+                Task { await cleanup.quickScan() }
+            }
         }
         .onChange(of: folder?.path) { _, path in
             if path != nil, folder?.path != cleanup.home { tab = .folder }

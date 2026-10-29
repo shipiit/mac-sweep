@@ -75,6 +75,9 @@ enum SettingsKeys {
     static let aiDefaultTool = "aiDefaultTool"
     /// Comma-separated sidebar pages the user turned off.
     static let hiddenSections = "hiddenSections"
+    /// Opt-in weekly cleanup of safe junk, and when it last ran.
+    static let autoCleanWeekly = "autoCleanWeekly"
+    static let autoCleanLastRun = "autoCleanLastRun"
 }
 
 enum DashboardLayout {

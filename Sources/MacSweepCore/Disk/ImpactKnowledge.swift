@@ -61,7 +61,41 @@ public enum ImpactKnowledge {
         Rule(match: match, explanation: Explanation(summary, ifDeleted: ifDeleted, risk: risk))
     }
 
-    static let rules: [Rule] = specificRules + locationRules + extensionRules
+    static let rules: [Rule] = toolRules + specificRules + genericToolRules + locationRules + extensionRules
+
+    /// Broad patterns that must lose to every specific rule above them.
+    static let genericToolRules: [Rule] = [
+        rule(.ext(["pth", "pt", "safetensors", "ckpt", "gguf", "onnx", "mlmodel", "bin"]),
+             "Machine-learning model weights.",
+             "Whatever uses this model must download or train it again. Safe if you no longer use it.", .caution),
+        rule(.name("vectors"),
+             "Vector index data for a local search or AI tool.", "That tool rebuilds its index, which can take a while.", .caution),
+        rule(.contains("/.cache/"),
+             "A cache kept by a command-line tool.", "The tool re-downloads or rebuilds what it needs. Nothing else breaks.", .safe),
+    ]
+
+    /// Developer and AI tool files that otherwise show up as "Unknown" in Large Files.
+    static let toolRules: [Rule] = [
+        rule(.containsBoth("/.git/", "/pack/"),
+             "Part of a git repository's history (compressed objects).",
+             "The repository breaks: commits and files become unreadable. Shrink it with `git gc` instead.", .keep),
+        rule(.contains("/.local/share/claude/versions/"),
+             "A Claude Code CLI build kept for rollback.", "Nothing breaks if it isn't the version you run; the newest is used.", .safe),
+        rule(.contains("/.cache/codex-runtimes/codex-runtime-install-"),
+             "A leftover from an interrupted Codex runtime download.", "Nothing breaks. Codex uses its finished runtime.", .safe),
+        rule(.contains("/.cache/codex-runtimes/"),
+             "The runtime Codex uses to run tasks.", "Codex downloads it again the next time it runs a task.", .caution),
+        rule(.containsBoth("/.vscode", "/extensions/"),
+             "Part of an installed VS Code extension (bundled tools or binaries).",
+             "That extension stops working until you reinstall it. Old versions of updated extensions are safe to remove.", .caution),
+        rule(.containsBoth("/.cursor", "/extensions/"),
+             "Part of an installed Cursor extension.", "That extension stops working until you reinstall it.", .caution),
+        rule(.contains("/.codex/"),
+             "Codex data: sessions, history database or its app components.",
+             "Codex loses that history or re-downloads the component. Your code is not affected.", .caution),
+        rule(.contains("/.roboflow/models/"),
+             "A downloaded Roboflow computer-vision model.", "Downloaded again the next time your code loads that model.", .caution),
+    ]
 
     static let specificRules: [Rule] = [
         rule(.contains("/application support/claude/vm_bundles"),
