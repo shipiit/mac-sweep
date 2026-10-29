@@ -9,10 +9,22 @@ public enum Permissions {
         string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
     )
 
-    /// TCC.db is only openable with Full Disk Access, so a successful open is a reliable probe.
-    public static func hasFullDiskAccess(home: String = NSHomeDirectory()) -> Bool {
-        let probe = home + "/Library/Application Support/com.apple.TCC/TCC.db"
-        guard let handle = FileHandle(forReadingAtPath: probe) else { return false }
+    /// Locations macOS only lets apps with Full Disk Access read. TCC.db alone is not enough:
+    /// macOS 27 refuses it even with Full Disk Access granted.
+    public static func protectedProbes(home: String) -> [String] {
+        ["/Library/Safari", "/Library/Mail", "/Library/Messages", "/Library/Containers/com.apple.Safari",
+         "/Library/Application Support/com.apple.TCC/TCC.db"].map { home + $0 }
+    }
+
+    public static func hasFullDiskAccess(home: String = NSHomeDirectory(), canRead: (String) -> Bool = isReadable) -> Bool {
+        protectedProbes(home: home).contains(where: canRead)
+    }
+
+    public static func isReadable(_ path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { return false }
+        if isDirectory.boolValue { return (try? FileManager.default.contentsOfDirectory(atPath: path)) != nil }
+        guard let handle = FileHandle(forReadingAtPath: path) else { return false }
         try? handle.close()
         return true
     }
