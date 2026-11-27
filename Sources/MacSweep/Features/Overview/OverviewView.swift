@@ -10,14 +10,6 @@ struct OverviewView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 14) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Dashboard").font(.system(size: 30, weight: .bold))
-                        Text("Your Mac's health, performance and security at a glance.").font(.title3).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Label("Live · updates every few seconds", systemImage: "dot.radiowaves.left.and.right").font(.callout).foregroundStyle(.secondary)
-                }
                 if !app.hasFullDiskAccess { FullDiskAccessBanner(onRecheck: app.refreshPermissions) }
                 OverviewHero()
                 let cards = DashboardLayout.decode(layout)
@@ -71,40 +63,36 @@ struct OverviewBackground: View {
     }
 }
 
+/// The Mac at a glance: what it is, how it's doing, the three live gauges and where the disk went.
 struct OverviewHero: View {
-    @Environment(\.appAccent) private var accent
     @Environment(AppModel.self) private var app
 
     var body: some View {
         let mac = app.system.mac
-        Panel(padding: 22) {
-            HStack(spacing: 26) {
-                Image(systemName: "macbook")
-                    .font(.system(size: 84, weight: .light))
-                    .foregroundStyle(.primary.opacity(0.85))
-                    .frame(width: 150)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(mac.modelName).font(.system(size: 28, weight: .bold))
-                    Text("\(mac.chip) · \(Format.memory(mac.memory)) memory · \(mac.osVersion)")
-                        .font(.title3).foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        StatusChip(text: "Up \(app.system.uptime)", symbol: "clock", color: .secondary)
-                        StatusChip(text: "Thermal: \(app.system.thermal.rawValue)", symbol: "circle.fill", color: thermalColor)
-                        if let memory = app.processes.memory {
-                            StatusChip(text: "Memory pressure: \(memory.pressure.rawValue)", symbol: "circle.fill", color: memory.pressure.color)
-                        }
-                    }
-                    .padding(.top, 6)
-                }
-                Spacer()
-                HStack(spacing: 26) {
-                    RingGauge(value: app.monitor.cpu, label: "CPU", size: 86, lineWidth: 9)
-                    RingGauge(value: memoryFraction, label: "Memory", size: 86, lineWidth: 9)
-                    RingGauge(value: diskFraction, label: "Disk", size: 86, lineWidth: 9)
-                }
+        let volume = app.monitor.volume
+        let cleanable = min(app.cleanup.total(.safe) + app.cleanup.total(.review), volume?.used ?? 0)
+        let kept = (volume?.used ?? 0) - cleanable
+        SummaryHero(
+            symbol: "macbook", eyebrow: "This Mac · live", value: mac.modelName, caption: caption(mac),
+            tint: app.processes.memory?.pressure.color == .red || app.system.thermal == .critical ? .red : nil,
+            segments: [
+                BarSegment(label: "In use", value: Double(kept), color: .blue, detail: Format.bytes(kept)),
+                BarSegment(label: "Cleanable", value: Double(cleanable), color: .orange, detail: Format.bytes(cleanable)),
+                BarSegment(label: "Free", value: Double(volume?.available ?? 0), color: .gray.opacity(0.35), detail: Format.bytes(volume?.available ?? 0)),
+            ]
+        ) {
+            HStack(spacing: 22) {
+                RingGauge(value: app.monitor.cpu, label: "CPU", size: 78, lineWidth: 8)
+                RingGauge(value: memoryFraction, label: "Memory", size: 78, lineWidth: 8)
+                RingGauge(value: diskFraction, label: "Disk", size: 78, lineWidth: 8)
             }
         }
+    }
+
+    private func caption(_ mac: MacInfo) -> String {
+        var parts = ["\(mac.chip) · \(Format.memory(mac.memory)) memory · \(mac.osVersion)", "up \(app.system.uptime)", "thermal \(app.system.thermal.rawValue.lowercased())"]
+        if let memory = app.processes.memory { parts.append("memory pressure \(memory.pressure.rawValue.lowercased())") }
+        return parts.joined(separator: " · ")
     }
 
     private var memoryFraction: Double {
@@ -113,15 +101,6 @@ struct OverviewHero: View {
 
     private var diskFraction: Double {
         app.monitor.volume.map { Double($0.used) / Double(max($0.total, 1)) } ?? 0
-    }
-
-    private var thermalColor: Color {
-        switch app.system.thermal {
-        case .nominal: .green
-        case .fair: .yellow
-        case .serious: .orange
-        case .critical: .red
-        }
     }
 }
 
@@ -152,21 +131,5 @@ struct TopProcessesCard: View {
                 }
             }
         }
-    }
-}
-
-/// Small rounded status label with an icon, for the dashboard hero.
-struct StatusChip: View {
-    let text: String
-    let symbol: String
-    let color: Color
-
-    var body: some View {
-        Label(text, systemImage: symbol)
-            .font(.callout.weight(.medium))
-            .imageScale(.small)
-            .foregroundStyle(color == .secondary ? .secondary : color)
-            .padding(.horizontal, 10).padding(.vertical, 5)
-            .background((color == .secondary ? Color.secondary : color).opacity(0.12), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 }

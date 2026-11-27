@@ -37,66 +37,49 @@ struct SecurityView: View {
     }
 }
 
-/// Score ring, verdict, three counters and the main actions.
+/// Score, verdict, what was checked and the main actions.
 private struct SecurityHero: View {
     let security: SecurityModel
     let showRecommendations: () -> Void
-    @Environment(\.appAccent) private var accent
     @Environment(AppModel.self) private var app
     @State private var hardening = HardeningModel.shared
 
     var body: some View {
         let toHarden = hardening.failing.count
         let issues = security.protectionsOff + security.highFindings
-        let tint: Color = security.score >= 85 ? .green : security.score >= 60 ? .orange : .red
-        Panel(padding: 24) {
-            HStack(spacing: 28) {
-                ZStack {
-                    Circle().stroke(tint.opacity(0.15), lineWidth: 12)
-                    Circle().trim(from: 0, to: Double(security.score) / 100).stroke(tint, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                    VStack(spacing: 2) {
-                        Text("\(security.score)%").font(.system(size: 36, weight: .bold, design: .rounded))
-                        Text("Protection Score").font(.caption).foregroundStyle(.secondary)
-                    }
-                    if security.isRunning { SpinningRing(isActive: true, lineWidth: 3).frame(width: 150, height: 150) }
+        let on = security.protections.filter { $0.state == .on }.count
+        VStack(alignment: .leading, spacing: 10) {
+            SummaryHero(
+                symbol: issues > 0 ? "exclamationmark.shield.fill" : "checkmark.shield.fill", eyebrow: "Protection score",
+                value: "\(security.score) / 100",
+                caption: (issues > 0 ? "Your Mac needs attention" : toHarden > 0 ? "Protected, with settings to tighten" : "Your Mac is well protected")
+                    + " · \(security.checkedItems) startup items and processes checked · \(security.uniqueExtensionCount) browser extensions",
+                tint: security.score >= 85 ? .green : security.score >= 60 ? .orange : .red, isLoading: security.lastRun == nil,
+                segments: [
+                    BarSegment(label: "Protections on", value: Double(on), color: .green, detail: "\(on)"),
+                    BarSegment(label: "Protections off", value: Double(security.protectionsOff), color: .red, detail: "\(security.protectionsOff)"),
+                    BarSegment(label: "Findings to review", value: Double(security.highFindings), color: .orange, detail: "\(security.highFindings)"),
+                    BarSegment(label: "Settings to harden", value: Double(toHarden), color: .yellow, detail: "\(toHarden)"),
+                ]
+            ) {
+                Button { Task { await security.run() } } label: {
+                    Label(security.isRunning ? "Checking…" : "Run Security Audit", systemImage: "magnifyingglass").frame(minWidth: 190)
                 }
-                .frame(width: 140, height: 140)
-                .accessibilityElement(children: .combine)
-                VStack(alignment: .leading, spacing: 10) {
-                    Text(security.lastRun == nil ? "Checking your Mac…" : issues > 0 ? "Your Mac needs attention" : toHarden > 0 ? "Protected, with settings to tighten" : "Your Mac is well protected")
-                        .font(.system(size: 30, weight: .bold))
-                    Text("\(security.checkedItems) startup items and processes checked · \(security.uniqueExtensionCount) browser extensions")
-                        .font(.title3).foregroundStyle(.secondary)
-                    HStack(spacing: 8) {
-                        chip("\(security.protectionsOff) protection\(security.protectionsOff == 1 ? "" : "s") off", isGood: security.protectionsOff == 0)
-                        chip("\(security.highFindings) finding\(security.highFindings == 1 ? "" : "s") to review", isGood: security.highFindings == 0)
-                        chip("\(security.highAccessExtensions) high-risk extension\(security.highAccessExtensions == 1 ? "" : "s")", isGood: security.highAccessExtensions == 0)
-                        if hardening.hasLoaded {
-                            Button { app.section = .hardening } label: {
-                                chip(toHarden == 0 ? "All settings hardened" : "\(toHarden) setting\(toHarden == 1 ? "" : "s") to harden ›", isGood: toHarden == 0)
-                            }
-                            .buttonStyle(.plain).help("Open Hardening")
-                        }
+                .buttonStyle(.borderedProminent).disabled(security.isRunning)
+                Button(action: showRecommendations) { Label("Review Recommendations", systemImage: "list.bullet.clipboard").frame(minWidth: 190) }
+            }
+            HStack(spacing: 8) {
+                chip("\(security.protectionsOff) protection\(security.protectionsOff == 1 ? "" : "s") off", isGood: security.protectionsOff == 0)
+                chip("\(security.highFindings) finding\(security.highFindings == 1 ? "" : "s") to review", isGood: security.highFindings == 0)
+                chip("\(security.highAccessExtensions) high-risk extension\(security.highAccessExtensions == 1 ? "" : "s")", isGood: security.highAccessExtensions == 0)
+                if hardening.hasLoaded {
+                    Button { app.section = .hardening } label: {
+                        chip(toHarden == 0 ? "All settings hardened" : "\(toHarden) setting\(toHarden == 1 ? "" : "s") to harden ›", isGood: toHarden == 0)
                     }
-                    .task { await hardening.refresh() }
-                }
-                Spacer()
-                VStack(spacing: 10) {
-                    Button { Task { await security.run() } } label: {
-                        Label(security.isRunning ? "Checking…" : "Run Security Audit", systemImage: "magnifyingglass")
-                            .font(.headline).foregroundStyle(.white).frame(width: 230).padding(.vertical, 12)
-                            .background(accent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain).disabled(security.isRunning)
-                    Button(action: showRecommendations) {
-                        Label("Review Recommendations", systemImage: "list.bullet.clipboard")
-                            .font(.headline).frame(width: 230).padding(.vertical, 11)
-                            .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.plain).help("Open Hardening")
                 }
             }
+            .task { await hardening.refresh() }
         }
     }
 

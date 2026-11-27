@@ -9,20 +9,19 @@ struct NetworkMonitorView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                StatStrip {
-                    StatTile(title: "Apps online", value: Format.count(model.count(for: .internet)),
-                             detail: "\(Format.count(model.activity.count)) with sockets")
-                    StatTile(title: "Outbound", value: Format.count(model.outboundTotal), detail: "internet connections")
-                    StatTile(title: "Listening", value: Format.count(model.listeningTotal), detail: "open ports")
-                    StatTile(title: "Flagged", value: Format.count(model.count(for: .flagged)),
-                             detail: model.count(for: .flagged) == 0 ? "nothing untrusted" : "untrusted code online",
-                             dot: model.count(for: .flagged) == 0 ? nil : .orange)
-                }
-                HStack(spacing: 12) {
-                    Spacer()
-                    TextField("Search apps or hosts", text: $model.search)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 240)
+                let online = model.count(for: .internet), flagged = model.count(for: .flagged)
+                SummaryHero(
+                    symbol: "point.3.connected.trianglepath.dotted", eyebrow: "On the network right now",
+                    value: "\(online) app\(online == 1 ? "" : "s") online",
+                    caption: "\(Format.count(model.activity.count)) apps have open sockets · " + (flagged == 0 ? "nothing untrusted is talking to the internet" : "\(flagged) untrusted program\(flagged == 1 ? " is" : "s are") online"),
+                    tint: flagged == 0 ? nil : .orange,
+                    segments: [
+                        BarSegment(label: "Internet connections", value: Double(model.outboundTotal), color: .blue, detail: Format.count(model.outboundTotal)),
+                        BarSegment(label: "Open ports", value: Double(model.listeningTotal), color: .teal, detail: Format.count(model.listeningTotal)),
+                        BarSegment(label: "Flagged apps", value: Double(flagged), color: .orange, detail: Format.count(flagged)),
+                    ]
+                ) {
+                    TextField("Search apps or hosts", text: $model.search).textFieldStyle(.roundedBorder).frame(width: 240)
                 }
                 if model.sample?.hasTraffic == false {
                     Text("Traffic counters are unavailable right now; connections are still shown.")
