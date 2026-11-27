@@ -86,6 +86,17 @@ import Testing
 }
 
 @Suite struct CodeSignClonesTests {
+    @Test func removesOnlyTheQuitBrowsersCopies() throws {
+        let root = try makeRoot()
+        defer { try? FileManager.default.removeItem(atPath: root) }
+        #expect(CodeSignClones.removeLeftBehind(by: "com.google.Chrome", tempRoot: root, measure: { _ in 100 }, isRunning: { _ in true }) == 0)
+        #expect(CodeSignClones.removeLeftBehind(by: "com.google.Chrome", tempRoot: root, measure: { _ in 100 }, isRunning: { _ in false }) == 200)
+        #expect(!FileManager.default.fileExists(atPath: root + "/X/com.google.Chrome.code_sign_clone/code_sign_clone.AAA"))
+        #expect(FileManager.default.fileExists(atPath: root + "/X/com.google.Chrome.code_sign_clone/other"))
+        #expect(FileManager.default.fileExists(atPath: root + "/X/com.brave.Browser.code_sign_clone/code_sign_clone.CCC"))
+        #expect(CodeSignClones.removeLeftBehind(by: "com.unknown.app", tempRoot: root, measure: { _ in 100 }, isRunning: { _ in false }) == 0)
+    }
+
     func makeRoot() throws -> String {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
         for path in ["X/com.google.Chrome.code_sign_clone/code_sign_clone.AAA/Chrome.app",
@@ -275,16 +286,5 @@ import Testing
         #expect(folders.map(\.name) == ["postgresql@14", "postgresql@16", "mysql", "redis"])
         #expect(folders[0].isRunning && !folders[1].isRunning)
         #expect(HiddenFolders.databaseFolders(brewPrefix: nil, running: running).isEmpty)
-    }
-}
-
-@Suite struct AppDataKnowledgeTests {
-    @Test func bigAppFoldersGetSpecificExplanations() {
-        let home = "/Users/me"
-        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Claude", home: home)?.summary.contains("vm_bundles") == true)
-        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Google", home: home)?.risk == .keep)
-        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Code", home: home)?.summary.contains("VS Code") == true)
-        // Only the folder itself: files inside still get their own, more specific explanation.
-        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Claude/vm_bundles/x.img", home: home)?.summary.contains("Claude desktop app data") != true)
     }
 }

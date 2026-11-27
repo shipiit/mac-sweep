@@ -170,3 +170,82 @@ private func temporaryFolder() throws -> String {
         #expect(FileManager.default.fileExists(atPath: brew + "/var/postgresql@14"))
     }
 }
+
+@Suite struct SessionArchiveTests {
+    private func session(_ id: String, at path: String, age: TimeInterval = 86_400) -> AISessionRecord {
+        AISessionRecord(id: id, provider: .claudeCode, project: "~/app", modified: Date().addingTimeInterval(-age), paths: [path], size: 1, title: "Fix it")
+    }
+
+    @Test func archivesThenRestoresByteForByte() async throws {
+        let home = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let project = home + "/.claude/projects/p"
+        try FileManager.default.createDirectory(atPath: project, withIntermediateDirectories: true)
+        let transcript = project + "/abc-123.jsonl"
+        let content = Data(String(repeating: "{\"type\":\"user\",\"message\":\"hello\"}\n", count: 4_000).utf8)
+        try content.write(to: URL(fileURLWithPath: transcript))
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: transcript)
+        let root = home + "/archive"
+
+        let record = try await SessionArchive.archive(session("abc-123", at: transcript), root: root, home: home)
+        #expect(!FileManager.default.fileExists(atPath: transcript))
+        #expect(record.originalSize == UInt64(content.count) && record.archivedSize > 0 && record.archivedSize < record.originalSize / 10)
+        #expect(record.saved == record.originalSize - record.archivedSize && record.title == "Fix it")
+        #expect(SessionArchive.list(root: root) == [record])
+
+        try await SessionArchive.restore(record, root: root, home: home)
+        #expect(FileManager.default.contents(atPath: transcript) == content)
+        #expect((try FileManager.default.attributesOfItem(atPath: transcript))[.modificationDate] as? Date == date)
+        #expect(SessionArchive.list(root: root).isEmpty)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: root).isEmpty)
+    }
+
+    @Test func refusesOpenSessionsBadIdsAndPathsOutsideHome() async throws {
+        let home = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let transcript = home + "/s.jsonl"
+        try "x".write(toFile: transcript, atomically: true, encoding: .utf8)
+        let root = home + "/archive"
+        await #expect(throws: DevCommandError.self) { try await SessionArchive.archive(session("s", at: transcript, age: 10), root: root, home: home) }
+        await #expect(throws: DevCommandError.self) { try await SessionArchive.archive(session("../x", at: transcript), root: root, home: home) }
+        await #expect(throws: DevCommandError.self) { try await SessionArchive.archive(session("s", at: "/etc/hosts"), root: root, home: home) }
+        #expect(FileManager.default.fileExists(atPath: transcript))
+        #expect(SessionArchive.isValidID("7385bd55-aaaa") && SessionArchive.isValidID("rollout-2026-11-01T10.00") && !SessionArchive.isValidID("") && !SessionArchive.isValidID("a/b"))
+        #expect(SessionArchive.list(root: home + "/none").isEmpty)
+    }
+
+    @Test func neverOverwritesAnExistingTranscriptOnRestore() async throws {
+        let home = try temporaryFolder()
+        defer { try? FileManager.default.removeItem(atPath: home) }
+        let transcript = home + "/s1.jsonl"
+        try "original".write(toFile: transcript, atomically: true, encoding: .utf8)
+        let root = home + "/archive"
+        let record = try await SessionArchive.archive(session("s1", at: transcript), root: root, home: home)
+        try "newer".write(toFile: transcript, atomically: true, encoding: .utf8)
+        await #expect(throws: DevCommandError.self) { try await SessionArchive.restore(record, root: root, home: home) }
+        #expect(try String(contentsOfFile: transcript, encoding: .utf8) == "newer")
+        #expect(SessionArchive.list(root: root).count == 1)
+    }
+}
+
+@Suite struct CompressedMemoryTests {
+    @Test func parsesTopRowsWithSpacesInNames() {
+        let output = "Processes: 700 total\n\nPID    COMMAND          CMPRS\n3172   redis-server     2042M\n9330   Google Chrome He 964M \n12     idle             0B\n77     tiny             512K\nbad line\n1      big              1.5G\n"
+        let rows = SystemSpace.compressedMemory(topOutput: output)
+        #expect(rows.map(\.name) == ["redis-server", "Google Chrome He", "tiny", "big"])
+        #expect(rows[0].bytes == 2_042 * 1_048_576 && rows[2].bytes == 512 * 1_024 && rows[3].bytes == 1_610_612_736)
+        #expect(SystemSpace.compressedMemory(topOutput: "").isEmpty)
+    }
+}
+
+@Suite struct AppDataKnowledgeTests {
+    @Test func bigAppFoldersGetSpecificExplanations() {
+        let home = "/Users/me"
+        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Claude", home: home)?.summary.contains("vm_bundles") == true)
+        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Google", home: home)?.risk == .keep)
+        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Code", home: home)?.summary.contains("VS Code") == true)
+        // Only the folder itself: files inside still get their own, more specific explanation.
+        #expect(ImpactKnowledge.explain(path: home + "/Library/Application Support/Claude/vm_bundles/x.img", home: home)?.summary.contains("Claude desktop app data") != true)
+    }
+}

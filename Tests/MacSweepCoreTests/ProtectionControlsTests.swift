@@ -156,3 +156,44 @@ import Testing
         #expect(SecurityPatches.malwareDefinitions(paths: [folder + "/missing.plist"]) == nil)
     }
 }
+
+@Suite struct DownloadHoldTests {
+    @Test func holdsByMode() {
+        for kind in [FileKind.app, .installerPackage, .diskImage, .script, .executable, .archive] {
+            #expect(DownloadHold.shouldHold(kind: kind, mode: .programs) && DownloadHold.shouldHold(kind: kind, mode: .everything))
+            #expect(!DownloadHold.shouldHold(kind: kind, mode: .off))
+        }
+        for kind in [FileKind.document, .other] {
+            #expect(!DownloadHold.shouldHold(kind: kind, mode: .programs) && DownloadHold.shouldHold(kind: kind, mode: .everything))
+        }
+        #expect(DownloadHoldMode(rawValue: "nonsense") == nil && DownloadHoldMode.allCases.count == 3)
+    }
+
+    @Test func waitsForAFileToSettle() {
+        let now = Date(timeIntervalSince1970: 1_000)
+        #expect(!DownloadHold.isSettled(modified: now.addingTimeInterval(-0.5), now: now))
+        #expect(DownloadHold.isSettled(modified: now.addingTimeInterval(-1.5), now: now))
+        #expect(!DownloadHold.isSettled(modified: now.addingTimeInterval(5), now: now))
+    }
+
+    @Test func heldFilesGoThroughQuarantineAndComeBackUnchanged() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).path
+        try FileManager.default.createDirectory(atPath: folder + "/Downloads", withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: folder) }
+        let file = folder + "/Downloads/tool.sh"
+        try "#!/bin/sh\necho hi\n".write(toFile: file, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: file)
+        let store = QuarantineStore(root: folder + "/Quarantine")
+        let verdict = DownloadHold.verdict(path: file, kind: .script, origin: "https://example.com/tool.sh", size: 20)
+        #expect(verdict.severity == .info && !verdict.isAutoQuarantine)
+        let item = try store.quarantine(verdict)
+        #expect(DownloadHold.isHeld(item) && item.origin == "https://example.com/tool.sh")
+        #expect(!FileManager.default.fileExists(atPath: file))
+        #expect(!FileManager.default.isExecutableFile(atPath: item.storedPath))
+        try store.restore(item)
+        #expect(FileManager.default.isExecutableFile(atPath: file))
+        #expect(try String(contentsOfFile: file, encoding: .utf8) == "#!/bin/sh\necho hi\n")
+        let threat = QuarantinedItem(id: UUID(), originalPath: "/x", storedPath: "/y", date: Date(), reasons: ["Unsigned"], origin: nil, executables: [])
+        #expect(!DownloadHold.isHeld(threat))
+    }
+}

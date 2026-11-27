@@ -49,13 +49,18 @@ public enum ToolCommandRunner {
             process.standardError = pipe
             process.standardInput = FileHandle.nullDevice
             let buffer = LineBuffer(onLine: onLine)
-            pipe.fileHandleForReading.readabilityHandler = { handle in buffer.feed(handle.availableData) }
+            // Reads and the final drain share one queue. Without it, a read still in flight when the process exits
+            // delivered its lines after the drain, and the last unterminated line was never flushed.
+            let reads = DispatchQueue(label: "macsweep.tool-output")
+            pipe.fileHandleForReading.readabilityHandler = { handle in reads.sync { buffer.feed(handle.availableData) } }
             let timer = DispatchWorkItem { if process.isRunning { process.terminate() } }
             process.terminationHandler = { finished in
                 timer.cancel()
-                pipe.fileHandleForReading.readabilityHandler = nil
-                buffer.feed(pipe.fileHandleForReading.readDataToEndOfFile())
-                buffer.flush()
+                reads.sync {
+                    pipe.fileHandleForReading.readabilityHandler = nil
+                    buffer.feed(pipe.fileHandleForReading.readDataToEndOfFile())
+                    buffer.flush()
+                }
                 if finished.terminationReason == .uncaughtSignal { continuation.resume(returning: .timedOut) }
                 else if finished.terminationStatus == 127 { continuation.resume(returning: .toolMissing) }
                 else { continuation.resume(returning: .finished(status: finished.terminationStatus)) }

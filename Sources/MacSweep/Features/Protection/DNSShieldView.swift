@@ -18,7 +18,7 @@ struct DNSShieldView: View {
                 }
                 Card {
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionHeader(title: "Choose a filter", subtitle: "Applied to every network on this Mac (Wi-Fi, Ethernet, tethering). macOS asks for your password once.")
+                        SectionHeader(title: "Choose a filter", subtitle: "One at a time: a Mac asks a single DNS service, and mixing two lets unfiltered answers through. Each one further down blocks more. Applied to every network on this Mac; macOS asks for your password once.")
                         ForEach(DNSShield.profiles) { profile in
                             ProfileRow(profile: profile, isActive: model.active == profile, isBlocking: model.active == profile ? model.isBlocking : nil,
                                        isBusy: model.isApplying || !model.hasLoaded) { Task { await model.turnOn(profile) } }

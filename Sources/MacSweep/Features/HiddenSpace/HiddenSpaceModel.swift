@@ -22,6 +22,8 @@ final class HiddenSpaceModel {
     private(set) var appData: [AppDataGroup] = []
     private(set) var folderParts: [String: [FolderPart]] = [:]
     private(set) var tables: [String: [PostgresTable]] = [:]
+    /// Apps whose memory macOS has compressed the most: what's pushing data into swap.
+    private(set) var swapUsers: [(name: String, bytes: UInt64)]?
     var selectedDatabases = Set<String>()
     var selectedParts = Set<String>()
     /// The result of the last action, measured as the change in free disk space.
@@ -94,6 +96,10 @@ final class HiddenSpaceModel {
     func loadParts(of folder: String) async {
         guard folderParts[folder] == nil else { return }
         folderParts[folder] = await Task.detached(priority: .userInitiated) { AppDataBreakdown.parts(of: folder) }.value
+    }
+
+    func loadSwapUsers() async {
+        swapUsers = await SystemSpace.compressedMemory()
     }
 
     func loadTables(of database: PostgresDatabase) async {

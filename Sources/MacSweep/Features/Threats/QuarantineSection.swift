@@ -57,15 +57,17 @@ struct QuarantineSection: View {
     private func row(_ item: QuarantinedItem) -> some View {
         Panel(padding: 14) {
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "lock.doc.fill").font(.title2).foregroundStyle(.red).frame(width: 34)
+                let isHeld = DownloadHold.isHeld(item)
+                Image(systemName: isHeld ? "hourglass" : "lock.doc.fill").font(.title2).foregroundStyle(isHeld ? .orange : .red).frame(width: 34)
+                    .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(item.name).fontWeight(.semibold)
                     ForEach(item.reasons, id: \.self) { Text("• \($0)").font(.callout).foregroundStyle(.secondary) }
-                    Text("Was at \(Format.path(item.originalPath)) · quarantined \(Format.relative(item.date))" + (item.origin.map { " · from \($0)" } ?? ""))
+                    Text("Was at \(Format.path(item.originalPath)) · \(isHeld ? "held" : "quarantined") \(Format.relative(item.date))" + (item.origin.map { " · from \($0)" } ?? ""))
                         .font(.caption).foregroundStyle(.tertiary).lineLimit(1).truncationMode(.middle)
                 }
                 Spacer()
-                Button("Restore") { threats.restore(item) }
+                Button(isHeld ? "Allow" : "Restore") { threats.restore(item) }
                 Button("Delete…") { discarding = item }.tint(.red)
             }
         }

@@ -21,6 +21,7 @@ private struct GeneralSettings: View {
     @AppStorage("scanSchedule") private var schedule: ScanSchedule = .nightly
     @AppStorage("showNotchHUD") private var showNotch = true
     @AppStorage(SettingsKeys.autoCleanWeekly) private var autoClean = false
+    @AppStorage(SettingsKeys.autoRemoveBrowserCopies) private var autoBrowserCopies = false
     @AppStorage(SettingsKeys.liveDockIcon) private var liveDockIcon = true
     @AppStorage(SettingsKeys.menuBarStyle) private var menuBarStyle: MenuBarStyle = .cpuAndMemory
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
@@ -36,6 +37,9 @@ private struct GeneralSettings: View {
             Section("Automatic cleanup") {
                 Toggle("Clean safe junk every week", isOn: $autoClean)
                 Text("Only items marked Safe to remove (caches, build output, update leftovers), never anything in use or marked Review first. They go to the Trash, and you get a notification with the amount.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Toggle("Remove a browser's leftover copies when it quits", isOn: $autoBrowserCopies)
+                Text("Chrome, Brave and Edge copy their whole app into a temp folder at launch and often leave it behind. With this on, MacSweep deletes those copies a few seconds after the browser quits.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Section("Disk") {

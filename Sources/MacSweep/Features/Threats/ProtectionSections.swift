@@ -48,6 +48,16 @@ struct DownloadProtectionSection: View {
                         Spacer()
                         Toggle("Download Protection", isOn: $threats.isProtectionOn).toggleStyle(.switch).labelsHidden().controlSize(.large)
                     }
+                    if threats.isProtectionOn {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Picker("When a download passes the checks", selection: $threats.holdMode) {
+                                ForEach(DownloadHoldMode.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                            Text(threats.holdMode.detail + (threats.held.isEmpty ? "" : " \(threats.held.count) waiting now, in the Quarantine tab."))
+                                .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
                     HStack(spacing: 12) {
                         InfoTile(symbol: "arrow.down.doc", tint: .blue, title: "Downloads checked", value: "\(log.count) recent")
                         InfoTile(symbol: "lock.shield", tint: .red, title: "Blocked", value: "\(log.filter { $0.outcome == .quarantined }.count)",

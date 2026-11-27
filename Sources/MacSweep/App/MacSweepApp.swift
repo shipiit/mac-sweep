@@ -49,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notch: NotchController?
     private var dockTile: DockTileController?
     private var autoQuitter: AutoQuitter?
+    private var browserCopyCleaner: BrowserCopyCleaner?
     private var defaultsObserver: NSObjectProtocol?
 
     /// Keep running in the menu bar and notch after the window closes.
@@ -65,6 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let autoQuitter = AutoQuitter(app: model)
         self.autoQuitter = autoQuitter
         autoQuitter.start()
+        browserCopyCleaner = BrowserCopyCleaner()
         let dockTile = DockTileController(app: model)
         self.dockTile = dockTile
         dockTile.setEnabled(UserDefaults.standard.bool(forKey: SettingsKeys.liveDockIcon))

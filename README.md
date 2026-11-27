@@ -59,10 +59,12 @@ mindmap
 ### 🧹 Clean up
 | | |
 |---|---|
-| **Smart Scan** | One button checks junk, security, speed and apps in about 20 seconds, then cleans up step by step in an "Optimizing your Mac" view with a Stop ring. |
+| **Smart Scan** | One button checks junk, hidden space, AI sessions, security settings, updates, speed and apps in two to three minutes, then shows one ranked list: safe clean-ups and security fixes are ticked, anything that is your call opens its page. **Fix Selected** runs them step by step with a Stop ring. |
 | **Space & Junk** | A treemap of every folder, hidden ones included, with a folder panel to tick items anywhere. Recommendations are split into *Safe to remove* and *Review first*; growth badges show what grew since the last scan, and a forecast says when the disk would fill at the current rate. Finds app update leftovers, old CLI and editor-extension versions, unfinished runtime downloads, AI model caches and more. |
 | **Cleanup script & tool commands** | Generates a script that uses each tool's own clean command (`npm cache clean`, `pnpm store prune`, `brew cleanup`…) and can run them for you with a live log. Review-first items never run. |
 | **Weekly auto-clean** | Opt-in: moves safe junk (never anything in use) to the Trash once a week and tells you how much. |
+| **Hidden Space** | What a home-folder scan can't see: applications, Homebrew, local databases, simulator runtimes, temp files, swap and leftover browser copies, each opening level by level. Splits the biggest app-data folders into caches you can drop and data you should keep. Lists every local Postgres database with its biggest tables, when it last changed and the project files that name it; drops one only after a verified backup if you choose. |
+| **AI Sessions** | Every Claude Code and Codex session with its title, project and size. Slim one to its conversation, compress its transcript into an archive you can restore byte for byte, or move it to the Trash. Named and open sessions are never touched. |
 | **Large & Hidden Files** | The biggest files, grouped by kind (AI sessions & models, developer files, app data, media, installers, macOS assets) with Safe / Think first / Keep labels, what deleting each causes, and a review sheet before anything moves to the Trash. |
 | **Browser Profiles** | Size of every Chrome, Brave, Edge, Arc and Vivaldi profile; clean caches per profile (never logins, cookies or bookmarks). |
 | **Duplicates & Archive** | Byte-for-byte duplicates (SHA-256; one copy is always kept), similar photos via on-device Vision, and old projects zipped to an external drive or iCloud, verified before the original can go. |
@@ -72,9 +74,12 @@ mindmap
 | | |
 |---|---|
 | **Malware Scan** | Quick, Full and **Deep** scans (whole home folder, apps, startup folders). Finds disguised programs (`invoice.pdf.app`), broken or missing code signatures, Gatekeeper rejections, known adware and hidden executables, and shows Apple XProtect's definition version. Keeps a history of every scan. |
-| **Download Protection** | Checks every finished download and keeps the last 20 with where they came from, who signed them and the verdict. Clear threats are moved to quarantine before you can open them; suspicious files raise a notification. On by default. |
+| **Download Protection** | Checks every finished download and keeps the last 20 with where they came from, who signed them and the verdict. Clear threats are moved to quarantine before you can open them; suspicious files raise a notification. On by default. Optionally holds apps, installers and scripts, or every download, in quarantine until you allow them. |
 | **Quarantine** | Quarantined files have their execute permission removed. Restore or delete them any time. |
 | **Security Audit** | A protection score with SIP, Gatekeeper, FileVault, Firewall and XProtect status (the Firewall can be turned on from here), suspicious startup items, high-risk extensions, recommendations and app-permission counts. The sidebar badge shows **Secure** or the number of issues. |
+| **Hardening** | Fifteen settings that make a Mac harder to break into (firewall and stealth mode, automatic security updates, password after sleep, guest account, sharing services, DNS), scored, with one-password fixes where macOS allows them. |
+| **DNS Shield** | Points every network on the Mac at a DNS service that refuses malware, scam or adult sites (Quad9, Cloudflare, CleanBrowsing), checks the filter is live, and puts your old servers back in one click. A VPN or a browser's own secure DNS bypasses it. |
+| **Security Patcher** | Pending macOS, app and tool updates ranked by security weight, with Apple's malware-definition version and the state of automatic security updates. |
 | **App Permissions** | Which apps can use the camera, microphone, screen recording, Full Disk Access or Accessibility, flagged by risk, with a jump to revoke. |
 | **Network Monitor** | Live connections per app with the hosts they talk to; untrusted programs going online are flagged. |
 | **Sharing & Wi-Fi · Backups · Extensions** | Wi-Fi security, SSH and screen sharing, firewall and AirDrop; Time Machine age and excluded folders; browser extensions per profile with their permissions. |

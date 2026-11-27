@@ -127,6 +127,7 @@ private struct BucketRow: View {
                 if let link { Button(link, action: open).buttonStyle(.link).font(.caption) }
                 if isOpen {
                     VStack(alignment: .leading, spacing: 8) {
+                        if bucket.kind == .swap { SwapUsersList(model: model) }
                         ForEach(roots, id: \.self) { root in
                             VStack(alignment: .leading, spacing: 2) {
                                 if roots.count > 1 { Text(root).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
@@ -153,6 +154,34 @@ private struct BucketRow: View {
         case .updateSnapshots: (bucket.count ?? 0) > 0 ? "Open Software Update" : nil
         default: nil
         }
+    }
+}
+
+/// The apps with the most compressed memory. Quitting the top ones is what actually shrinks swap.
+private struct SwapUsersList: View {
+    let model: HiddenSpaceModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Apps pushing memory out to disk right now").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            if let users = model.swapUsers {
+                if users.isEmpty { Text("Nothing is being compressed right now.").font(.caption).foregroundStyle(.secondary) }
+                let largest = max(users.first?.bytes ?? 1, 1)
+                ForEach(Array(users.enumerated()), id: \.offset) { _, user in
+                    HStack(spacing: 8) {
+                        Text(user.name).font(.caption.monospaced()).lineLimit(1).frame(width: 200, alignment: .leading)
+                        ProgressView(value: Double(user.bytes) / Double(largest)).frame(maxWidth: 160).accessibilityHidden(true)
+                        Spacer()
+                        Text(Format.bytes(user.bytes)).font(.caption.monospacedDigit())
+                    }
+                }
+                Text("Quit or restart the top ones to shrink swap. The files below are macOS's swap files; they can't be deleted by hand.")
+                    .font(.caption).foregroundStyle(.secondary).padding(.top, 2)
+            } else {
+                HStack { ProgressView().controlSize(.small); Text("Sampling memory…").font(.caption).foregroundStyle(.secondary) }
+            }
+        }
+        .task { await model.loadSwapUsers() }
     }
 }
 

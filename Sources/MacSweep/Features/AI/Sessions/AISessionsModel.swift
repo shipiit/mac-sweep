@@ -11,6 +11,10 @@ final class AISessionsModel {
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     private(set) var isRemoving = false
+    /// Sessions compressed into MacSweep's archive, restorable to where they were.
+    private(set) var archived: [ArchivedSession] = []
+    /// "3 of 12" while a compression run is in progress.
+    private(set) var progress: String?
     var selected = Set<String>()
     var report: String?
 
@@ -24,6 +28,7 @@ final class AISessionsModel {
         guard !isLoading else { return }
         isLoading = true
         sessions = await Task.detached(priority: .utility) { SessionInventory.all() }.value
+        archived = await Task.detached(priority: .utility) { SessionArchive.list() }.value
         selected.formIntersection(Set(sessions.map(\.id)))
         isLoading = false
         hasLoaded = true
@@ -57,6 +62,39 @@ final class AISessionsModel {
         report = "Slimmed \(slimmed.count) session\(slimmed.count == 1 ? "" : "s"): \(Format.bytes(slimmed.reduce(0) { $0 + $1.extrasSize })) of subagent logs, tool output and file backups moved to the Trash. The conversations are untouched."
             + (failed.isEmpty ? " Empty the Trash to free the space." : " \(failed.count) item\(failed.count == 1 ? "" : "s") couldn't be moved.")
         selected.removeAll()
+        isRemoving = false
+        await refresh()
+    }
+
+    var archivedSaved: UInt64 { archived.reduce(0) { $0 + $1.saved } }
+
+    /// Compresses each ticked session's transcript into the archive. The original goes only after the copy is proven identical.
+    func compressSelected() async {
+        let chosen = sessions.filter { selected.contains($0.id) && !$0.isActive() && !isNamed($0) }
+        guard !chosen.isEmpty, !isRemoving else { return }
+        isRemoving = true
+        var saved: UInt64 = 0, failures: [String] = []
+        for (index, session) in chosen.enumerated() {
+            progress = "\(index + 1) of \(chosen.count)"
+            do { saved += try await SessionArchive.archive(session).saved } catch { failures.append(error.localizedDescription) }
+        }
+        progress = nil
+        report = "Compressed \(chosen.count - failures.count) session\(chosen.count - failures.count == 1 ? "" : "s") and freed \(Format.bytes(saved)). Restore one from the Archived list to /resume it."
+            + (failures.isEmpty ? "" : " \(failures.count) couldn't be compressed: \(failures.prefix(2).joined(separator: "; "))")
+        selected.removeAll()
+        isRemoving = false
+        await refresh()
+    }
+
+    func restore(_ record: ArchivedSession) async {
+        guard !isRemoving else { return }
+        isRemoving = true
+        do {
+            try await SessionArchive.restore(record)
+            report = "Restored \(record.title ?? record.project). You can /resume it again."
+        } catch {
+            report = "Couldn't restore: \(error.localizedDescription)"
+        }
         isRemoving = false
         await refresh()
     }

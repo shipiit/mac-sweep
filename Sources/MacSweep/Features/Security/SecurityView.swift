@@ -42,8 +42,11 @@ private struct SecurityHero: View {
     let security: SecurityModel
     let showRecommendations: () -> Void
     @Environment(\.appAccent) private var accent
+    @Environment(AppModel.self) private var app
+    @State private var hardening = HardeningModel.shared
 
     var body: some View {
+        let toHarden = hardening.failing.count
         let issues = security.protectionsOff + security.highFindings
         let tint: Color = security.score >= 85 ? .green : security.score >= 60 ? .orange : .red
         Panel(padding: 24) {
@@ -61,7 +64,7 @@ private struct SecurityHero: View {
                 .frame(width: 140, height: 140)
                 .accessibilityElement(children: .combine)
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(security.lastRun == nil ? "Checking your Mac…" : issues == 0 ? "Your Mac is well protected" : "Your Mac needs attention")
+                    Text(security.lastRun == nil ? "Checking your Mac…" : issues > 0 ? "Your Mac needs attention" : toHarden > 0 ? "Protected, with settings to tighten" : "Your Mac is well protected")
                         .font(.system(size: 30, weight: .bold))
                     Text("\(security.checkedItems) startup items and processes checked · \(security.uniqueExtensionCount) browser extensions")
                         .font(.title3).foregroundStyle(.secondary)
@@ -69,7 +72,14 @@ private struct SecurityHero: View {
                         chip("\(security.protectionsOff) protection\(security.protectionsOff == 1 ? "" : "s") off", isGood: security.protectionsOff == 0)
                         chip("\(security.highFindings) finding\(security.highFindings == 1 ? "" : "s") to review", isGood: security.highFindings == 0)
                         chip("\(security.highAccessExtensions) high-risk extension\(security.highAccessExtensions == 1 ? "" : "s")", isGood: security.highAccessExtensions == 0)
+                        if hardening.hasLoaded {
+                            Button { app.section = .hardening } label: {
+                                chip(toHarden == 0 ? "All settings hardened" : "\(toHarden) setting\(toHarden == 1 ? "" : "s") to harden ›", isGood: toHarden == 0)
+                            }
+                            .buttonStyle(.plain).help("Open Hardening")
+                        }
                     }
+                    .task { await hardening.refresh() }
                 }
                 Spacer()
                 VStack(spacing: 10) {

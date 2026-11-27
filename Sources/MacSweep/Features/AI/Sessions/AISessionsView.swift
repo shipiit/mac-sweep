@@ -9,6 +9,7 @@ struct AISessionsView: View {
     @State private var minimumAge = 0
     @State private var confirming = false
     @State private var confirmingSlim = false
+    @State private var confirmingCompress = false
     @State private var limit = 100
     @Environment(\.appAccent) private var accent
 
@@ -26,6 +27,7 @@ struct AISessionsView: View {
                     NoticeBanner(symbol: "checkmark.circle", title: "Done", message: report, tint: .green, actionTitle: "Dismiss") { model.report = nil }
                 }
                 controls
+                if !model.archived.isEmpty { ArchivedSessionsCard(model: model) }
                 list
             }
             .padding(20)
@@ -36,6 +38,12 @@ struct AISessionsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("You won't be able to /resume these sessions, and their usage history leaves AI Usage. They stay in the Trash until you empty it.")
+        }
+        .confirmationDialog("Compress \(model.selected.count) sessions?", isPresented: $confirmingCompress) {
+            Button("Compress \(Format.bytes(model.selectedSize))") { Task { await model.compressSelected() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Each transcript is compressed to roughly a third of its size and kept in MacSweep's archive. A compressed session can't be resumed, and its usage leaves AI Usage, until you restore it from the Archived list. Named and open sessions are skipped.")
         }
         .confirmationDialog("Slim \(model.selected.count) sessions?", isPresented: $confirmingSlim) {
             Button("Move \(Format.bytes(model.selectedExtrasSize)) of Extras to Trash") { Task { await model.slimSelected() } }
@@ -75,6 +83,9 @@ struct AISessionsView: View {
                     .fixedSize()
                     Button("Slim…") { confirmingSlim = true }.disabled(model.selectedExtrasSize == 0 || model.isRemoving)
                         .help("Keep the conversation, remove subagent logs, tool output and file backups")
+                    Button(model.progress.map { "Compressing \($0)…" } ?? "Compress…") { confirmingCompress = true }
+                        .disabled(model.selected.isEmpty || model.isRemoving)
+                        .help("Shrink the transcript to about a third; restore it any time to resume")
                     Button("Move to Trash…") { confirming = true }.disabled(model.selected.isEmpty || model.isRemoving)
                     Button("Rescan", systemImage: "arrow.clockwise") { Task { await model.refresh() } }.disabled(model.isLoading)
                 }
@@ -150,5 +161,37 @@ private struct SessionRow: View {
             Button("Reveal", systemImage: "folder") { FileActions.reveal(session.paths[0]) }.labelStyle(.iconOnly).buttonStyle(.borderless)
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
+    }
+}
+
+/// Compressed sessions, each with a button that puts it back exactly as it was.
+private struct ArchivedSessionsCard: View {
+    let model: AISessionsModel
+    @State private var isOpen = false
+
+    var body: some View {
+        Card {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    SectionHeader(title: "Archived (\(model.archived.count))", subtitle: "Compressed transcripts, saving \(Format.bytes(model.archivedSaved)). Restore one to resume it.")
+                    Spacer()
+                    Button(isOpen ? "Hide" : "Show") { isOpen.toggle() }
+                }
+                if isOpen {
+                    ForEach(model.archived) { record in
+                        HStack(spacing: 10) {
+                            Image(systemName: "archivebox").foregroundStyle(.secondary).frame(width: 18).accessibilityHidden(true)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(record.title ?? record.project).font(.callout.weight(.semibold)).lineLimit(1)
+                                Text("\(record.project) · \(record.id.prefix(8)) · last used \(Format.relative(record.modified))").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            }
+                            Spacer()
+                            Text("\(Format.bytes(record.archivedSize)) of \(Format.bytes(record.originalSize))").font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            Button("Restore") { Task { await model.restore(record) } }.disabled(model.isRemoving)
+                        }
+                    }
+                }
+            }
+        }
     }
 }

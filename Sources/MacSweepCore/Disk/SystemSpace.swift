@@ -75,6 +75,31 @@ public enum SystemSpace {
         return scale > 0 ? UInt64(number * scale) : nil
     }
 
+    /// Rows of `top -l 1 -o cmprs -stats pid,command,cmprs`: the apps whose memory macOS has compressed,
+    /// which is what spills into swap. Names are cut by top at 16 characters.
+    public static func compressedMemory(topOutput: String) -> [(name: String, bytes: UInt64)] {
+        guard let header = topOutput.range(of: "CMPRS") else { return [] }
+        return topOutput[header.upperBound...].split(separator: "\n").compactMap { line -> (name: String, bytes: UInt64)? in
+            let fields = line.split(separator: " ").map(String.init)
+            guard fields.count >= 3, Int(fields[0]) != nil, let last = fields.last, let unit = last.last, let number = Double(last.dropLast()) else { return nil }
+            let scale: Double = switch unit {
+            case "B": 1
+            case "K": 1_024
+            case "M": 1_048_576
+            case "G": 1_073_741_824
+            default: 0
+            }
+            guard scale > 0, number * scale > 0 else { return nil }
+            return (fields[1..<(fields.count - 1)].joined(separator: " "), UInt64(number * scale))
+        }
+    }
+
+    public static func compressedMemory(limit: Int = 8) async -> [(name: String, bytes: UInt64)] {
+        guard let result = try? await DevShell.run("/usr/bin/top", ["-l", "1", "-o", "cmprs", "-n", String(limit), "-stats", "pid,command,cmprs"],
+                                                   timeout: 15, tool: "top") else { return [] }
+        return compressedMemory(topOutput: result.stdout)
+    }
+
     /// Counts `com.apple.os.update-…` lines from `tmutil listlocalsnapshots /`.
     public static func updateSnapshotCount(tmutilOutput: String) -> Int {
         tmutilOutput.split(separator: "\n").filter { $0.hasPrefix("com.apple.os.update-") }.count

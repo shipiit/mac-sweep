@@ -41,7 +41,14 @@ final class ThreatCenter {
     @ObservationIgnored private var watcher: DirectoryWatcher?
     @ObservationIgnored private var scanTask: Task<Void, Never>?
     @ObservationIgnored private var checked: [String: Date] = [:]
+    @ObservationIgnored private var isRecheckPending = false
     static let protectionKey = "downloadProtection"
+    static let holdKey = "downloadHoldMode"
+    /// Whether clean downloads wait for approval; threats are stopped in every mode.
+    var holdMode: DownloadHoldMode = DownloadHoldMode(rawValue: UserDefaults.standard.string(forKey: ThreatCenter.holdKey) ?? "") ?? .off {
+        didSet { UserDefaults.standard.set(holdMode.rawValue, forKey: Self.holdKey) }
+    }
+    var held: [QuarantinedItem] { quarantined.filter(DownloadHold.isHeld) }
     nonisolated static let ignoredNames: Set<String> = [".DS_Store", ".localized"]
     nonisolated static let partialExtensions: Set<String> = ["crdownload", "download", "part", "partial", "opdownload", "tmp"]
     private var downloads: String { NSHomeDirectory() + "/Downloads" }
@@ -123,7 +130,11 @@ final class ThreatCenter {
     func restore(_ item: QuarantinedItem) {
         do {
             try store.restore(item)
-            message = "Restored \(item.name)."
+            // An allowed download keeps its original date, so without this the guard would hold it again.
+            if let modified = (try? FileManager.default.attributesOfItem(atPath: item.originalPath))?[.modificationDate] as? Date {
+                checked[item.originalPath] = modified
+            }
+            message = DownloadHold.isHeld(item) ? "Allowed \(item.name). It's back in \(Format.path((item.originalPath as NSString).deletingLastPathComponent))." : "Restored \(item.name)."
         } catch {
             message = "Couldn't restore \(item.name): \(error.localizedDescription)"
         }
@@ -155,6 +166,7 @@ final class ThreatCenter {
         let folder = downloads
         let since = Date().addingTimeInterval(-600)
         let alreadyChecked = checked
+        let mode = holdMode
         let found = await Task.detached(priority: .utility) { () -> [(Date, DownloadRecord, ThreatVerdict?)] in
             let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
             return names.compactMap { name -> (Date, DownloadRecord, ThreatVerdict?)? in
@@ -165,16 +177,45 @@ final class ThreatCenter {
                       let modified = attributes[.modificationDate] as? Date,
                       modified > since, alreadyChecked[path] != modified else { return nil }
                 let facts = ThreatScanner.isCandidate(path) ? ThreatScanner.facts(for: path) : nil
-                let verdict = facts.flatMap(ThreatRules.assess)
                 let size = (attributes[.size] as? NSNumber)?.uint64Value ?? 0
-                return (modified, DownloadRecord.make(path: path, size: size, date: Date(), facts: facts, verdict: verdict), verdict)
+                let record = DownloadRecord.make(path: path, size: size, date: Date(), facts: facts, verdict: facts.flatMap(ThreatRules.assess))
+                var verdict = facts.flatMap(ThreatRules.assess)
+                // A clean file that the chosen mode holds: it waits in quarantine until the user allows it.
+                let kind = facts?.kind ?? FileKind.classify(name: name, isExecutable: false, isMachO: false)
+                if verdict == nil, DownloadHold.shouldHold(kind: kind, mode: mode) {
+                    guard DownloadHold.isSettled(modified: modified) else { return nil }
+                    verdict = DownloadHold.verdict(path: path, kind: kind, origin: facts?.origin ?? ThreatScanner.facts(for: path)?.origin, size: size)
+                }
+                return (modified, record, verdict)
             }
         }.value
+        // A file still being written was skipped above; look again once it has had time to finish.
+        if mode != .off, !isRecheckPending {
+            let stillWriting = await Task.detached(priority: .utility) { () -> Bool in
+                ((try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []).contains { name in
+                    guard let modified = (try? FileManager.default.attributesOfItem(atPath: folder + "/" + name))?[.modificationDate] as? Date else { return false }
+                    return !DownloadHold.isSettled(modified: modified) && modified <= Date()
+                }
+            }.value
+            if stillWriting {
+                isRecheckPending = true
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(3))
+                    self?.isRecheckPending = false
+                    await self?.checkDownloads()
+                }
+            }
+        }
         guard !found.isEmpty else { return }
         for (modified, record, verdict) in found {
             checked[record.path] = modified
             guard let verdict else { continue }
-            if verdict.isAutoQuarantine, (try? store.quarantine(verdict)) != nil {
+            if verdict.reasons == [DownloadHold.reason] {
+                if (try? store.quarantine(verdict)) != nil {
+                    quarantined = store.items()
+                    self.record(verdict, action: "Holding until you allow it")
+                }
+            } else if verdict.isAutoQuarantine, (try? store.quarantine(verdict)) != nil {
                 quarantined = store.items()
                 self.record(verdict, action: "Blocked and quarantined")
             } else {

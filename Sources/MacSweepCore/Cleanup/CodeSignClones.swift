@@ -45,6 +45,14 @@ public enum CodeSignClones {
         .sorted { $0.modified < $1.modified }
     }
 
+    /// Removes the copies one browser left behind, right after it quit. Returns the bytes removed.
+    @discardableResult
+    public static func removeLeftBehind(by bundleID: String, tempRoot: String? = userTempRoot(), measure: (String) -> UInt64? = DiskScanner.measure,
+                                        isRunning: (String) -> Bool) -> UInt64 {
+        let clones = find(tempRoot: tempRoot, measure: measure).filter { $0.bundleID == bundleID }
+        return remove(clones, tempRoot: tempRoot, isRunning: isRunning).filter(\.succeeded).reduce(0) { $0 + $1.size }
+    }
+
     /// Only exact `<tempRoot>/X/<id>.code_sign_clone/code_sign_clone.*` folders: nothing else in the temp area.
     public static func isClonePath(_ path: String, tempRoot: String) -> Bool {
         let standardized = (path as NSString).standardizingPath

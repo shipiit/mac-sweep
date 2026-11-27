@@ -78,6 +78,8 @@ enum SettingsKeys {
     /// Opt-in weekly cleanup of safe junk, and when it last ran.
     static let autoCleanWeekly = "autoCleanWeekly"
     static let autoCleanLastRun = "autoCleanLastRun"
+    /// Opt-in: delete a Chromium browser's leftover code-sign copies as soon as it quits.
+    static let autoRemoveBrowserCopies = "autoRemoveBrowserCopies"
 }
 
 enum DashboardLayout {
