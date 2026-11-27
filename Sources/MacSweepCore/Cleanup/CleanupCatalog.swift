@@ -86,7 +86,7 @@ public enum CleanupCatalog {
                     safety: .review, category: .ai, target: .paths(["~/.cache/codex-runtimes/codex-primary-runtime"])),
         CleanupRule(id: "ios-backups", title: "iPhone & iPad backups", detail: "Local device backups made by Finder. Only remove ones you no longer need; they can't be recreated.",
                     safety: .review, category: .media, target: .contents(of: "~/Library/Application Support/MobileSync/Backup")),
-        CleanupRule(id: "ai-sessions", title: "Claude Code & Codex sessions", detail: "Your AI conversation history. Deleting it loses /resume and usage history; AI Usage can remove only old sessions.",
+        CleanupRule(id: "ai-sessions", title: "Claude Code & Codex sessions", detail: "Your AI conversation history. Deleting it loses /resume and usage history. Cleanup → AI Sessions lists every session so you can remove only old ones.",
                     safety: .review, category: .ai, target: .paths(["~/.claude/projects", "~/.codex/sessions"])),
         CleanupRule(id: "worktrees", title: "Claude & git worktrees", detail: "Extra checkouts created by agents. Check for unpushed work first.",
                     safety: .review, category: .code, target: .named([".claude/worktrees", ".worktrees"], idleDays: 7)),

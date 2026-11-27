@@ -67,11 +67,16 @@ struct StorageStats: View {
             )
             StatTile(title: "Safe to remove", value: Format.bytes(cleanup.total(.safe)), detail: "\(cleanup.count(.safe)) groups", dot: .green)
             StatTile(title: "Needs review", value: Format.bytes(cleanup.total(.review)), detail: "\(cleanup.count(.review)) groups", dot: .orange)
-            StatTile(
-                title: result.restrictedCount > 0 ? "Not scanned · \(result.restrictedCount) locked" : "Not scanned",
-                value: Format.bytes(unscanned),
-                detail: result.root.path == "/" ? "purgeable & snapshots" : "system & apps"
-            )
+            Button { app.section = .hiddenSpace } label: {
+                StatTile(
+                    title: result.restrictedCount > 0 ? "Not scanned · \(result.restrictedCount) locked" : "Not scanned",
+                    value: Format.bytes(unscanned),
+                    detail: result.root.path == "/" ? "purgeable & snapshots" : "system & apps · see what's inside ›"
+                )
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Open Hidden Space to see what's outside your home folder")
         }
     }
 }

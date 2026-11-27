@@ -41,6 +41,8 @@ public enum ImpactKnowledge {
             case name(String)
             case ext([String])
             case under(String)
+            /// Exactly this folder (relative to home), not what's inside it.
+            case exactly(String)
         }
 
         let match: Match
@@ -53,6 +55,7 @@ public enum ImpactKnowledge {
             case .name(let exact): name == exact
             case .ext(let list): list.contains(ext)
             case .under(let relative): path == home + relative || path.hasPrefix(home + relative + "/")
+            case .exactly(let relative): path == home + relative.lowercased()
             }
         }
     }
@@ -76,6 +79,17 @@ public enum ImpactKnowledge {
 
     /// Developer and AI tool files that otherwise show up as "Unknown" in Large Files.
     static let toolRules: [Rule] = [
+        rule(.exactly("/Library/Application Support/Claude"),
+             "Claude desktop app data. Most of it is usually vm_bundles, the virtual machine Claude uses to run code.",
+             "You'd be signed out and lose local app state. Deleting just vm_bundles is safer: Claude downloads it again when it needs it.", .caution),
+        rule(.exactly("/Library/Application Support/Google"),
+             "Google Chrome profiles: history, extensions, logins and site storage for every profile.",
+             "Every Chrome profile is reset. Use Browser Profiles to clean caches per profile instead.", .keep),
+        rule(.exactly("/Library/Application Support/Code"),
+             "VS Code's data: settings, workspace state, extension storage and Copilot indexes.",
+             "VS Code loses settings sync state and workspace history. Clearing its Cache and CachedData folders is safe.", .caution),
+        rule(.exactly("/Library/Application Support/BraveSoftware"),
+             "Brave browser profiles.", "Every Brave profile is reset. Use Browser Profiles to clean caches instead.", .keep),
         rule(.containsBoth("/.git/", "/pack/"),
              "Part of a git repository's history (compressed objects).",
              "The repository breaks: commits and files become unreadable. Shrink it with `git gc` instead.", .keep),

@@ -56,6 +56,8 @@ struct RootView: View {
         case .gitSlimming: ScrollView { GitSlimmingView().padding(20) }.navigationTitle("Git Repos")
         case .appFootprint: ScrollView { AppFootprintView().padding(20) }.navigationTitle("App Footprint")
         case .browserProfiles: BrowserProfilesView().navigationTitle("Browser Profiles")
+        case .hiddenSpace: HiddenSpaceView().navigationTitle("Hidden Space")
+        case .aiSessions: AISessionsView().navigationTitle("AI Sessions")
         case .memoryGuard: MemoryGuardView()
         case .startupGuard: StartupGuardView(startupGuard: app.startupGuard).navigationTitle("Startup Guard")
         case .timeline: InsightsTimelineView()
