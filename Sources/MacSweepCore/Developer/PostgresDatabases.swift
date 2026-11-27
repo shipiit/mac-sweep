@@ -38,6 +38,13 @@ public struct PostgresDatabase: Sendable, Equatable, Identifiable {
     public var lastWritten: Date? = nil
     public var id: String { "\(port)/\(name)" }
     public var isRemovable: Bool { kind != .system && kind != .inUse }
+
+    /// No project names it and nothing has written to it for a month: the ones worth counting as reclaimable.
+    /// A database that changed recently is being used by something, whatever the config files say.
+    public func isLikelyUnused(now: Date = Date()) -> Bool {
+        guard kind == .unreferenced || kind == .test else { return false }
+        return lastWritten.map { now.timeIntervalSince($0) > 30 * 86_400 } ?? true
+    }
 }
 
 public enum PostgresDatabases {

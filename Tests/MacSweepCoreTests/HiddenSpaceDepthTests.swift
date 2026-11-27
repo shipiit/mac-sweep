@@ -125,6 +125,18 @@ private func temporaryFolder() throws -> String {
         #expect(PostgresInspector.lastWritten(dataDirectory: data, oid: "1") == nil)
     }
 
+    @Test func onlyQuietUnreferencedDatabasesCountAsUnused() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        func database(_ kind: PostgresDatabase.Kind, days: Double?) -> PostgresDatabase {
+            PostgresDatabase(name: "d", size: 1, connections: 0, port: 5432, kind: kind, lastWritten: days.map { now.addingTimeInterval(-$0 * 86_400) })
+        }
+        #expect(database(.unreferenced, days: 90).isLikelyUnused(now: now) && database(.test, days: 31).isLikelyUnused(now: now))
+        #expect(database(.unreferenced, days: nil).isLikelyUnused(now: now))
+        #expect(!database(.unreferenced, days: 1).isLikelyUnused(now: now) && !database(.unreferenced, days: 30).isLikelyUnused(now: now))
+        #expect(!database(.referenced, days: 400).isLikelyUnused(now: now) && !database(.inUse, days: 400).isLikelyUnused(now: now))
+        #expect(!database(.system, days: 400).isLikelyUnused(now: now))
+    }
+
     @Test func parsesTables() {
         let tables = PostgresInspector.parseTables("public.events\t2048\t12\npublic.empty\t0\t-1\nbroken\tx\t1\n\t1\t1\n")
         #expect(tables == [PostgresTable(name: "public.events", size: 2_048, rows: 12), PostgresTable(name: "public.empty", size: 0, rows: 0)])

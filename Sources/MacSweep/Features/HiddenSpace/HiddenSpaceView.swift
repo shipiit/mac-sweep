@@ -15,7 +15,7 @@ struct HiddenSpaceView: View {
                     StatTile(title: "Reclaimable app data", value: Format.bytes(model.reclaimableAppData), detail: "caches & sandboxes",
                              dot: model.reclaimableAppData > 0 ? .green : nil, isLoading: !model.hasLoaded || model.isMeasuringFolders)
                     StatTile(title: "Unused databases", value: Format.bytes(unusedDatabases.reduce(0) { $0 + $1.size }),
-                             detail: "\(unusedDatabases.count) no project names", dot: unusedDatabases.isEmpty ? nil : .orange, isLoading: !model.hasLoaded)
+                             detail: "\(unusedDatabases.count) unnamed, quiet for a month", dot: unusedDatabases.isEmpty ? nil : .orange, isLoading: !model.hasLoaded)
                     StatTile(title: "Stopped database servers", value: Format.bytes(stoppedFolders.reduce(0) { $0 + $1.size }),
                              detail: "\(stoppedFolders.count) data folder\(stoppedFolders.count == 1 ? "" : "s")", dot: stoppedFolders.isEmpty ? nil : .orange,
                              isLoading: !model.hasLoaded)
@@ -84,7 +84,7 @@ struct HiddenSpaceView: View {
         }
     }
 
-    private var unusedDatabases: [PostgresDatabase] { model.databases.filter { $0.kind == .unreferenced || $0.kind == .test } }
+    private var unusedDatabases: [PostgresDatabase] { model.databases.filter { $0.isLikelyUnused() } }
 
     private func open(_ kind: SystemSpaceBucket.Kind) {
         switch kind {

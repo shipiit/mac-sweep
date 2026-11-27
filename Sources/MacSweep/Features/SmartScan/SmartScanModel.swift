@@ -27,7 +27,7 @@ final class SmartScanModel {
         input.appCaches = closedAppParts.filter { $0.kind == .cache }.reduce(0) { $0 + $1.size }
         input.sandboxes = hidden.removableParts.filter { $0.kind == .rebuildable }.reduce(0) { $0 + $1.size }
         input.browserCopies = hidden.clonesSize
-        let unused = hidden.databases.filter { $0.kind == .unreferenced || $0.kind == .test }
+        let unused = hidden.databases.filter { $0.isLikelyUnused() }
         input.unusedDatabases = unused.reduce(0) { $0 + $1.size }
         input.unusedDatabaseCount = unused.count
         input.stoppedServers = hidden.dataFolders.filter { !$0.isRunning }.reduce(0) { $0 + $1.size }

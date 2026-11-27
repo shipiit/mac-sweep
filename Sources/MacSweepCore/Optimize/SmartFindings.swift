@@ -84,7 +84,7 @@ public enum SmartFindings {
               input.sessionExtras, .safe, .sessionExtras, "AI Sessions")
         space("trash", "Trash", "Emptying it is permanent, so it's off unless you tick it.", input.trash, .review, .trashBins, "Trash Bins")
         space("review-junk", "Large items to review", "Models, SDKs, installers and old projects. Real data, so you choose.", input.reviewJunk, .review, nil, "Space & Junk")
-        space("databases", plural(input.unusedDatabaseCount, "database") + " no project uses", "Local Postgres databases no config file names. Back up, then drop.",
+        space("databases", plural(input.unusedDatabaseCount, "database") + " no project uses", "Local Postgres databases no config file names and nothing has written to for a month. Back up, then drop.",
               input.unusedDatabases, .review, nil, "Hidden Space")
         space("sandboxes", "App sandboxes", "Rebuilt by the app, but files saved inside are lost.", input.sandboxes, .review, nil, "Hidden Space")
         space("stopped-servers", "Data of stopped database servers", "An old database version's data that nothing is running.", input.stoppedServers, .review, nil, "Hidden Space")
