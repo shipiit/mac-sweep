@@ -8,6 +8,7 @@ struct AISessionsView: View {
     @State private var provider: AIProvider?
     @State private var minimumAge = 0
     @State private var confirming = false
+    @State private var confirmingSlim = false
     @State private var limit = 100
     @Environment(\.appAccent) private var accent
 
@@ -17,11 +18,12 @@ struct AISessionsView: View {
                 StatStrip {
                     StatTile(title: "Sessions", value: Format.count(model.sessions.count))
                     StatTile(title: "On disk", value: Format.bytes(model.totalSize), detail: "transcripts, subagents & file history")
+                    StatTile(title: "Slimmable", value: Format.bytes(model.extrasSize), detail: "extras, conversations kept", dot: model.extrasSize > 0 ? .green : nil)
                     StatTile(title: "Older than 30 days", value: Format.bytes(oldSize(30)), detail: "named sessions excluded")
                     StatTile(title: "Selected", value: Format.bytes(model.selectedSize), detail: "\(model.selected.count) sessions")
                 }
                 if let report = model.report {
-                    NoticeBanner(symbol: "checkmark.circle", title: "Sessions removed", message: report, tint: .green, actionTitle: "Dismiss") { model.report = nil }
+                    NoticeBanner(symbol: "checkmark.circle", title: "Done", message: report, tint: .green, actionTitle: "Dismiss") { model.report = nil }
                 }
                 controls
                 list
@@ -35,15 +37,21 @@ struct AISessionsView: View {
         } message: {
             Text("You won't be able to /resume these sessions, and their usage history leaves AI Usage. They stay in the Trash until you empty it.")
         }
+        .confirmationDialog("Slim \(model.selected.count) sessions?", isPresented: $confirmingSlim) {
+            Button("Move \(Format.bytes(model.selectedExtrasSize)) of Extras to Trash") { Task { await model.slimSelected() } }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Keeps every conversation, so the sessions stay in your history. Removes their subagent logs, saved tool output and file backups, so /rewind and opening a subagent's log stop working for them.")
+        }
     }
 
     private var controls: some View {
         Card {
             VStack(alignment: .leading, spacing: 10) {
                 SectionHeader(title: "Claude Code & Codex sessions",
-                              subtitle: "Each session keeps its transcript, subagent logs, tool output and file backups. Named sessions are never auto-selected.")
+                              subtitle: "Slim a session to keep its conversation and drop the bulky extras, or move the whole session to the Trash. Named and open sessions are never auto-selected.")
                 HStack {
-                    TextField("Search project or session", text: $search).textFieldStyle(.roundedBorder).frame(maxWidth: 260)
+                    TextField("Search title, project or id", text: $search).textFieldStyle(.roundedBorder).frame(maxWidth: 260)
                     Picker("Tool", selection: $provider) {
                         Text("All tools").tag(AIProvider?.none)
                         ForEach(AIProvider.allCases) { Text($0.rawValue).tag(Optional($0)) }
@@ -55,13 +63,18 @@ struct AISessionsView: View {
                     }
                     .fixedSize()
                     Spacer()
-                    Menu("Select Old") {
+                    Menu("Select") {
+                        Button("Everything with extras to slim (\(Format.bytes(model.extrasSize)))") { model.selectSlimmable() }
+                        Divider()
                         ForEach([14, 30, 60, 90], id: \.self) { days in
                             Button("Older than \(days) days (\(Format.bytes(oldSize(days))))") { model.selectOlder(than: days) }
                         }
+                        Divider()
+                        Button("Clear selection") { model.selected.removeAll() }
                     }
                     .fixedSize()
-                    Button("Clear") { model.selected.removeAll() }.disabled(model.selected.isEmpty)
+                    Button("Slim…") { confirmingSlim = true }.disabled(model.selectedExtrasSize == 0 || model.isRemoving)
+                        .help("Keep the conversation, remove subagent logs, tool output and file backups")
                     Button("Move to Trash…") { confirming = true }.disabled(model.selected.isEmpty || model.isRemoving)
                     Button("Rescan", systemImage: "arrow.clockwise") { Task { await model.refresh() } }.disabled(model.isLoading)
                 }
@@ -94,6 +107,7 @@ struct AISessionsView: View {
         model.sessions.filter { session in
             (provider == nil || session.provider == provider) && session.age() >= minimumAge
                 && (search.isEmpty || session.project.localizedCaseInsensitiveContains(search) || session.id.localizedCaseInsensitiveContains(search)
+                    || (session.title?.localizedCaseInsensitiveContains(search) ?? false)
                     || (model.name(of: session)?.localizedCaseInsensitiveContains(search) ?? false))
         }
     }
@@ -123,11 +137,11 @@ private struct SessionRow: View {
             Image(systemName: session.provider == .codex ? "terminal" : "flame").foregroundStyle(tint).frame(width: 18).accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
                 HStack(spacing: 6) {
-                    Text(name ?? session.project).font(.callout.weight(.semibold)).lineLimit(1)
+                    Text(name ?? session.title ?? session.project).font(.callout.weight(.semibold)).lineLimit(1)
                     if isActive { Text("Open").font(.caption2.weight(.semibold)).foregroundStyle(.green).padding(.horizontal, 6).padding(.vertical, 1).background(Color.green.opacity(0.15), in: Capsule()) }
                     if isNamed { Text("Named").font(.caption2.weight(.semibold)).padding(.horizontal, 6).padding(.vertical, 1).background(tint.opacity(0.18), in: Capsule()) }
                 }
-                Text("\(name == nil ? "" : session.project + " · ")\(session.id.prefix(8)) · \(session.paths.count > 1 ? "\(session.paths.count) items" : "transcript")")
+                Text("\(name == nil && session.title == nil ? "" : session.project + " · ")\(session.id.prefix(8))\(session.extrasSize > 0 ? " · \(Format.bytes(session.extrasSize)) of extras" : "")")
                     .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer()

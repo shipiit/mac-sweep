@@ -10,6 +10,11 @@ public struct AISessionRecord: Sendable, Equatable, Identifiable {
     /// Transcript plus its subagent / tool-output folder and file-history backups.
     public let paths: [String]
     public let size: UInt64
+    /// What the session was about: the title Claude gave it, or its first prompt.
+    public var title: String? = nil
+    /// Subagent logs, saved tool output and file backups: removable while keeping the conversation.
+    public var extras: [String] = []
+    public var extrasSize: UInt64 = 0
 
     public func age(now: Date = Date()) -> Int { max(0, Int(now.timeIntervalSince(modified) / 86_400)) }
 
@@ -30,8 +35,14 @@ public enum SessionInventory {
             let id = stem(path)
             let folder = (path as NSString).deletingPathExtension
             let projectFolder = ((path as NSString).deletingLastPathComponent as NSString).lastPathComponent
-            return record(id: id, provider: .claudeCode, project: projectName(projectFolder, home: home), transcript: path,
-                          extras: [folder, fileHistory + "/" + id], measure: measure)
+            let head = SessionHead.read(path)
+            let project = head.workingDirectory.map { PathTools.isDescendant($0, of: home) || $0 == home ? "~" + $0.dropFirst(home.count) : $0 }
+            guard var session = record(id: id, provider: .claudeCode, project: project ?? projectName(projectFolder, home: home), transcript: path,
+                                       extras: [folder, fileHistory + "/" + id], measure: measure) else { return nil }
+            session.title = head.title
+            session.extras = [folder + "/subagents", folder + "/tool-results", fileHistory + "/" + id].filter { FileManager.default.fileExists(atPath: $0) }
+            session.extrasSize = session.extras.reduce(0) { $0 + (measure($1) ?? 0) }
+            return session
         }
         let codex = AIUsageScanner.transcripts(under: sources.codexRoot).compactMap { path -> AISessionRecord? in
             record(id: stem(path), provider: .codex, project: "Codex", transcript: path, extras: [], measure: measure)

@@ -59,11 +59,31 @@ public enum HiddenFolders {
         let base = brewPrefix + "/var"
         let runningDirectories = Set(running.map { ($0.dataDirectory as NSString).standardizingPath })
         return ((try? FileManager.default.contentsOfDirectory(atPath: base)) ?? [])
-            .filter { $0.hasPrefix("postgres") || $0.hasPrefix("mysql") || $0 == "redis" || $0.hasPrefix("mongodb") }
+            .filter(isDatabaseFolderName)
             .map { name in
                 let path = base + "/" + name
                 return DatabaseDataFolder(name: name, path: path, size: measure(path) ?? 0, isRunning: runningDirectories.contains(path))
             }
             .sorted { $0.size > $1.size }
+    }
+
+    static func isDatabaseFolderName(_ name: String) -> Bool {
+        name.hasPrefix("postgres") || name.hasPrefix("mysql") || name == "redis" || name.hasPrefix("mongodb")
+    }
+
+    /// Why a data folder can't be moved to the Trash, or nil when it can: only a stopped server's own folder under Homebrew's var/.
+    public static func trashRefusal(_ folder: DatabaseDataFolder, brewPrefix: String?) -> String? {
+        guard let brewPrefix, (folder.path as NSString).standardizingPath == brewPrefix + "/var/" + folder.name,
+              isDatabaseFolderName(folder.name), !folder.name.contains("/") else { return "Not a database data folder." }
+        if folder.isRunning { return "Its server is running. Stop it first." }
+        // Postgres leaves postmaster.pid behind only while running or after a crash; either way, don't touch it.
+        if FileManager.default.fileExists(atPath: folder.path + "/postmaster.pid") { return "It looks like the server is running or didn't shut down cleanly." }
+        return nil
+    }
+
+    /// Moves a stopped server's data folder to the Trash (recoverable until the Trash is emptied).
+    public static func trash(_ folder: DatabaseDataFolder, brewPrefix: String?) throws {
+        if let reason = trashRefusal(folder, brewPrefix: brewPrefix) { throw DevCommandError.failed(reason) }
+        try FileManager.default.trashItem(at: URL(fileURLWithPath: folder.path), resultingItemURL: nil)
     }
 }

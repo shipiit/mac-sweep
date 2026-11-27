@@ -53,7 +53,7 @@ struct SmartScanHome: View {
                 .keyboardShortcut(.defaultAction)
                 Label {
                     VStack(alignment: .leading, spacing: 1) {
-                        Text("Takes about 1 minute")
+                        Text("Takes 2 to 3 minutes")
                         Text("Safe and read-only until you choose").foregroundStyle(.secondary)
                     }
                     .font(.callout)

@@ -32,6 +32,10 @@ public struct PostgresDatabase: Sendable, Equatable, Identifiable {
     public var kind: Kind
     /// Config files that mention it (relative to home), for the "used by" detail.
     public var referencedBy: [String] = []
+    /// Postgres's internal id: the name of this database's folder under `base/`.
+    public var oid: String? = nil
+    /// When any of its table files last changed on disk. Approximate: background vacuuming also counts.
+    public var lastWritten: Date? = nil
     public var id: String { "\(port)/\(name)" }
     public var isRemovable: Bool { kind != .system && kind != .inUse }
 }
@@ -39,7 +43,7 @@ public struct PostgresDatabase: Sendable, Equatable, Identifiable {
 public enum PostgresDatabases {
     private static let log = Logger(subsystem: Log.subsystem, category: "postgres")
     static let systemNames: Set<String> = ["postgres", "template0", "template1"]
-    static let query = "select d.datname, pg_database_size(d.datname), (select count(*) from pg_stat_activity a where a.datname = d.datname) from pg_database d where d.datallowconn order by 2 desc"
+    static let query = "select d.datname, pg_database_size(d.datname), (select count(*) from pg_stat_activity a where a.datname = d.datname), d.oid from pg_database d where d.datallowconn order by 2 desc"
 
     /// Parses `ps -axo command` lines for running postgres servers.
     public static func servers(psOutput: String) -> [PostgresServer] {
@@ -53,13 +57,14 @@ public enum PostgresDatabases {
         }
     }
 
-    /// Parses `psql -XAtF '\t'` rows of name, size and connection count.
+    /// Parses `psql -XAtF '\t'` rows of name, size, connection count and (optionally) oid.
     public static func parse(_ output: String, port: Int) -> [PostgresDatabase] {
         output.split(separator: "\n").compactMap { line -> PostgresDatabase? in
             let fields = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
-            guard fields.count == 3, !fields[0].isEmpty, let size = UInt64(fields[1]), let connections = Int(fields[2]) else { return nil }
+            guard fields.count == 3 || fields.count == 4, !fields[0].isEmpty, let size = UInt64(fields[1]), let connections = Int(fields[2]) else { return nil }
             let kind: PostgresDatabase.Kind = systemNames.contains(fields[0]) ? .system : connections > 0 ? .inUse : .unreferenced
-            return PostgresDatabase(name: fields[0], size: size, connections: connections, port: port, kind: kind)
+            let oid = fields.count == 4 && !fields[3].isEmpty && fields[3].allSatisfy(\.isNumber) ? fields[3] : nil
+            return PostgresDatabase(name: fields[0], size: size, connections: connections, port: port, kind: kind, oid: oid)
         }
     }
 
@@ -87,7 +92,11 @@ public enum PostgresDatabases {
             log.warning("could not list databases on port \(server.port)")
             return []
         }
-        return parse(result.stdout, port: server.port)
+        return parse(result.stdout, port: server.port).map { database in
+            var database = database
+            database.lastWritten = database.oid.flatMap { PostgresInspector.lastWritten(dataDirectory: server.dataDirectory, oid: $0) }
+            return database
+        }
     }
 
     /// Drops one database with `dropdb`, which takes the name as an argument (no SQL to quote).

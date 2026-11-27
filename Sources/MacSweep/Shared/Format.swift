@@ -2,8 +2,16 @@ import Foundation
 import MacSweepCore
 
 enum Format {
+    /// "0 KB" rather than the formatter's default "Zero KB", which reads oddly in a row of figures.
+    private static let byteFormatter: ByteCountFormatter = {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowsNonnumericFormatting = false
+        return formatter
+    }()
+
     static func bytes(_ value: UInt64) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(clamping: value), countStyle: .file)
+        byteFormatter.string(fromByteCount: Int64(clamping: value))
     }
 
     static func bytes(_ value: UInt64?) -> String {

@@ -94,10 +94,10 @@ struct WhatWeCheckCard: View {
     private let checks: [(String, String, String, Color)] = [
         ("trash.fill", "System Junk", "Caches, logs, temporary files", .green),
         ("square.stack.3d.up.fill", "Applications", "Uninstaller, leftovers, updates", .orange),
-        ("checkmark.shield.fill", "Security", "Malware, vulnerabilities, privacy", .indigo),
-        ("doc.fill", "Large & Old Files", "Find and remove space hogs", .pink),
+        ("checkmark.shield.fill", "Security", "Risky settings, updates, startup items", .indigo),
+        ("externaldrive.fill", "Hidden Space", "App data, databases, browser copies", .pink),
         ("gauge.with.dots.needle.67percent", "Performance", "Login items, heavy processes", .purple),
-        ("doc.on.doc.fill", "Duplicates", "Photos, documents, downloads", .teal),
+        ("bubble.left.and.text.bubble.right.fill", "AI Sessions", "Claude Code and Codex leftovers", .teal),
     ]
 
     var body: some View {

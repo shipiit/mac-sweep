@@ -47,6 +47,10 @@ final class OptimizeRunner {
         isStopping = false
         finishedAt = Date()
         MemoryRelief.release()
+        // The pages these steps changed show fresh numbers the next time they're opened.
+        if steps.contains(.sessionExtras) { await AISessionsModel.shared.refresh() }
+        if steps.contains(.hardening) { await HardeningModel.shared.refresh() }
+        if steps.contains(.appCaches) || steps.contains(.browserCopies) { await HiddenSpaceModel.shared.refresh() }
     }
 
     private func perform(_ step: OptimizeStep, app: AppModel) async -> OptimizeStepState {
@@ -54,6 +58,36 @@ final class OptimizeRunner {
         case .systemJunk: return await cleanJunk(app)
         case .trashBins: return await emptyTrash()
         case .maintenance: return await runMaintenance()
+        case .appCaches:
+            let hidden = HiddenSpaceModel.shared
+            let parts = hidden.appData.filter { !hidden.isAppRunning($0.app) }.flatMap(\.removable).filter { $0.kind == .cache }
+            return await trash(parts.map { CleanupTarget(path: $0.path, size: $0.size) }, empty: "No app caches to clear")
+        case .sessionExtras:
+            let sessions = AISessionsModel.shared.sessions.filter { !$0.isActive() && !$0.extras.isEmpty }
+            // Sizes are per session, so each session's total rides on its first path.
+            let targets = sessions.flatMap { session in
+                session.extras.enumerated().map { CleanupTarget(path: $1, size: $0 == 0 ? session.extrasSize : 0, modified: session.modified) }
+            }
+            return await trash(targets, empty: "No session extras to remove")
+        case .browserCopies:
+            let hidden = HiddenSpaceModel.shared
+            let clones = hidden.clones, running = hidden.runningBrowsers()
+            guard !clones.isEmpty else { return .done(freed: 0, note: "No leftover copies") }
+            let results = await Task.detached { CodeSignClones.remove(clones, isRunning: running.contains) }.value
+            let freed = results.filter(\.succeeded).reduce(0) { $0 + $1.size }
+            let skipped = results.filter { !$0.succeeded }.count
+            return skipped > 0 && freed == 0 ? .skipped("Quit the browser first") : .done(freed: freed, note: skipped > 0 ? "\(skipped) skipped: browser is open" : nil)
+        case .hardening:
+            let ids = HardeningModel.shared.oneClickFixes
+            guard !ids.isEmpty else { return .done(freed: 0, note: "Nothing to change") }
+            do {
+                try await Hardening.applyFixes(ids)
+                return .done(freed: 0, note: "\(ids.count) setting\(ids.count == 1 ? "" : "s") turned on")
+            } catch AdminRunner.AdminError.cancelled {
+                return .skipped("Password not entered")
+            } catch {
+                return .warning("Couldn't apply: \(error.localizedDescription)")
+            }
         case .flushDNSAndRAM:
             do {
                 try await AdminRunner.flushDNSAndPurgeMemory()
@@ -64,6 +98,16 @@ final class OptimizeRunner {
                 return .warning("Couldn't run: \(error.localizedDescription)")
             }
         }
+    }
+
+    /// Moves targets to the Trash and reports what went.
+    private func trash(_ targets: [CleanupTarget], empty: String) async -> OptimizeStepState {
+        guard !targets.isEmpty else { return .done(freed: 0, note: empty) }
+        let results = await Task.detached(priority: .userInitiated) { Cleaner.remove(targets, mode: .trash) }.value
+        let moved = results.filter(\.succeeded).reduce(0) { $0 + $1.size }
+        let failed = results.filter { !$0.succeeded }.count
+        return failed > 0 && moved == 0 ? .warning("\(failed) couldn't be moved")
+            : .done(freed: moved, note: failed > 0 ? "In the Trash · \(failed) couldn't be moved" : "In the Trash")
     }
 
     private func cleanJunk(_ app: AppModel) async -> OptimizeStepState {

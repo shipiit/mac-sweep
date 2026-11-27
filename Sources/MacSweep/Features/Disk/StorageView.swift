@@ -23,7 +23,7 @@ struct StorageView: View {
                                 .frame(width: 380)
                         }
                         // Map and panel fill whatever height the window has left below the stats.
-                        .frame(height: max(600, proxy.size.height - (disk.isScanning ? 250 : 200)))
+                        .frame(height: max(600, proxy.size.height - (disk.isScanning ? 300 : 250)))
                     }
                     .padding(20)
                 }
@@ -46,38 +46,57 @@ struct StorageView: View {
     }
 }
 
+/// The page's headline: what can go right now, the button that does it, and where the whole disk went.
 struct StorageStats: View {
     @Environment(AppModel.self) private var app
     let disk: DiskModel
     let cleanup: CleanupModel
     let result: ScanResult
+    @State private var showsConfirm = false
 
     var body: some View {
-        let available = disk.volume?.available ?? 0
-        let used = disk.volume?.used ?? 0
+        // The live figure: the one saved with the scan goes stale within hours.
+        let volume = app.monitor.volume ?? disk.volume
+        let available = volume?.available ?? 0
+        let used = volume?.used ?? 0
+        let safe = cleanup.total(.safe), review = cleanup.total(.review)
         let unscanned = used > result.root.size ? used - result.root.size : 0
-        StatStrip {
-            StatTile(title: "Free now", value: Format.bytes(available), detail: forecastText ?? "of \(Format.bytes(disk.volume?.total ?? 0))",
-                     dot: (app.insights.storageForecast?.daysUntilFull ?? .infinity) < 30 ? .orange : nil)
-            StatTile(
-                title: "Free after cleanup",
-                value: Format.bytes(available + cleanup.selectedSize),
-                detail: cleanup.selectedSize > 0 ? "+" + Format.bytes(cleanup.selectedSize) : nil,
-                detailColor: .green
-            )
-            StatTile(title: "Safe to remove", value: Format.bytes(cleanup.total(.safe)), detail: "\(cleanup.count(.safe)) groups", dot: .green)
-            StatTile(title: "Needs review", value: Format.bytes(cleanup.total(.review)), detail: "\(cleanup.count(.review)) groups", dot: .orange)
-            Button { app.section = .hiddenSpace } label: {
-                StatTile(
-                    title: result.restrictedCount > 0 ? "Not scanned · \(result.restrictedCount) locked" : "Not scanned",
-                    value: Format.bytes(unscanned),
-                    detail: result.root.path == "/" ? "purgeable & snapshots" : "system & apps · see what's inside ›"
-                )
-                .contentShape(Rectangle())
+        let kept = result.root.size > safe + review ? result.root.size - safe - review : 0
+        SummaryHero(
+            symbol: "sparkles", eyebrow: safe > 0 ? "Safe to remove right now" : "Nothing safe to remove right now",
+            value: Format.bytes(safe),
+            caption: caption(available: available, total: volume?.total ?? 0), tint: .green,
+            segments: [
+                BarSegment(label: "Your files", value: Double(kept), color: .blue, detail: Format.bytes(kept)),
+                BarSegment(label: "Safe to remove", value: Double(safe), color: .green, detail: Format.bytes(safe)),
+                BarSegment(label: "Needs review", value: Double(review), color: .orange, detail: Format.bytes(review)),
+                BarSegment(label: result.root.path == "/" ? "Purgeable & snapshots" : "System & apps", value: Double(unscanned), color: .purple, detail: Format.bytes(unscanned)),
+                BarSegment(label: "Free", value: Double(available), color: .gray.opacity(0.35), detail: Format.bytes(available)),
+            ]
+        ) {
+            Button {
+                if !cleanup.hasSelection { cleanup.selectSafe() }
+                showsConfirm = true
+            } label: {
+                Label(cleanup.hasSelection ? "Clean \(Format.bytes(cleanup.selectedSize))…" : "Clean Safe Items…", systemImage: "trash").frame(minWidth: 150)
             }
-            .buttonStyle(.plain)
-            .help("Open Hidden Space to see what's outside your home folder")
+            .buttonStyle(.borderedProminent).tint(.green)
+            .disabled((safe == 0 && !cleanup.hasSelection) || cleanup.isCleaning)
+            .help("Review the list, then remove it. Nothing is deleted until you confirm.")
+            Button { app.section = .hiddenSpace } label: {
+                Label("What's in the other \(Format.bytes(unscanned))?", systemImage: "externaldrive.badge.questionmark").frame(minWidth: 150)
+            }
+            .help("Open Hidden Space: apps, databases, caches and system files outside your home folder")
         }
+        .sheet(isPresented: $showsConfirm) { CleanConfirmSheet(cleanup: cleanup) }
+    }
+
+    private func caption(available: UInt64, total: UInt64) -> String {
+        var parts = ["\(Format.bytes(available)) free of \(Format.bytes(total))"]
+        if cleanup.selectedSize > 0 { parts.append("\(Format.bytes(available + cleanup.selectedSize)) after cleaning what's selected") }
+        if result.restrictedCount > 0 { parts.append("\(result.restrictedCount) locked folders not scanned") }
+        if let forecastText { parts.append(forecastText) }
+        return parts.joined(separator: " · ")
     }
 }
 

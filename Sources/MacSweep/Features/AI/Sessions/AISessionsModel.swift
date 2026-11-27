@@ -17,6 +17,8 @@ final class AISessionsModel {
     var names: [String: String] { SessionNames.all() }
     var totalSize: UInt64 { sessions.reduce(0) { $0 + $1.size } }
     var selectedSize: UInt64 { sessions.filter { selected.contains($0.id) }.reduce(0) { $0 + $1.size } }
+    var extrasSize: UInt64 { sessions.reduce(0) { $0 + $1.extrasSize } }
+    var selectedExtrasSize: UInt64 { sessions.filter { selected.contains($0.id) }.reduce(0) { $0 + $1.extrasSize } }
 
     func refresh() async {
         guard !isLoading else { return }
@@ -36,6 +38,27 @@ final class AISessionsModel {
     /// Selects sessions untouched for `days`, never named ones or anything from today.
     func selectOlder(than days: Int) {
         selected = Set(SessionInventory.old(sessions, olderThanDays: max(days, 1), keeping: Set(names.keys)).map(\.id))
+    }
+
+    /// Ticks the sessions whose extras (subagent logs, tool output, file backups) take at least `minimum` bytes.
+    func selectSlimmable(minimum: UInt64 = 10_000_000) {
+        selected = Set(sessions.filter { $0.extrasSize >= minimum && !$0.isActive() }.map(\.id))
+    }
+
+    /// Keeps each ticked session's conversation and moves only its extras to the Trash.
+    func slimSelected() async {
+        let chosen = sessions.filter { selected.contains($0.id) && !$0.isActive() && !$0.extras.isEmpty }
+        guard !chosen.isEmpty, !isRemoving else { return }
+        isRemoving = true
+        let targets = chosen.flatMap { session in session.extras.map { CleanupTarget(path: $0, size: 0, modified: session.modified) } }
+        let results = await Task.detached(priority: .userInitiated) { Cleaner.remove(targets, mode: .trash) }.value
+        let failed = Set(results.filter { !$0.succeeded }.map(\.path))
+        let slimmed = chosen.filter { session in !session.extras.contains(where: failed.contains) }
+        report = "Slimmed \(slimmed.count) session\(slimmed.count == 1 ? "" : "s"): \(Format.bytes(slimmed.reduce(0) { $0 + $1.extrasSize })) of subagent logs, tool output and file backups moved to the Trash. The conversations are untouched."
+            + (failed.isEmpty ? " Empty the Trash to free the space." : " \(failed.count) item\(failed.count == 1 ? "" : "s") couldn't be moved.")
+        selected.removeAll()
+        isRemoving = false
+        await refresh()
     }
 
     func moveSelectedToTrash() async {

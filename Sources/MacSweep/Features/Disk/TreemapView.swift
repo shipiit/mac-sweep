@@ -31,7 +31,9 @@ struct TreemapView: View {
         ZStack {
             TreemapCanvas(tiles: tiles, coloring: coloring, tileSafety: tileSafety)
                 .equatable()
-            TreemapHighlight(hovered: hovered, selected: selected, coloring: coloring, tileSafety: tileSafety)
+            // The selection is looked up in the current layout: a tile kept from before a resize would be outlined in the wrong place.
+            TreemapHighlight(hovered: hovered, selected: selected.flatMap { chosen in tiles.first { $0.id == chosen.id } },
+                             coloring: coloring, tileSafety: tileSafety)
         }
         .id(focus.path)
         .transition(.opacity.combined(with: .scale(scale: 0.985)))

@@ -1,13 +1,14 @@
 import SwiftUI
 
 enum SmartScanStep: Int, CaseIterable, Identifiable {
-    case junk, security, speed, apps
+    case junk, hidden, security, speed, apps
 
     var id: Int { rawValue }
 
     var title: String {
         switch self {
         case .junk: "Junk & caches"
+        case .hidden: "Hidden space & AI sessions"
         case .security: "Malware & security"
         case .speed: "Speed & startup"
         case .apps: "Apps & updates"
@@ -17,6 +18,7 @@ enum SmartScanStep: Int, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .junk: "trash"
+        case .hidden: "externaldrive.badge.questionmark"
         case .security: "checkmark.shield"
         case .speed: "hare"
         case .apps: "square.stack.3d.up"
@@ -26,6 +28,7 @@ enum SmartScanStep: Int, CaseIterable, Identifiable {
     var tint: Color {
         switch self {
         case .junk: .green
+        case .hidden: .teal
         case .security: .indigo
         case .speed: .orange
         case .apps: .blue
@@ -58,7 +61,7 @@ struct SmartScanChecklist: View {
                         }
                     }
                     .accessibilityHidden(true)
-                    Text(step.title).fontWeight(.medium).frame(width: 170, alignment: .leading)
+                    Text(step.title).fontWeight(.medium).frame(width: 210, alignment: .leading)
                     Group {
                         switch state {
                         case .waiting: Text("Waiting").foregroundStyle(.tertiary)
@@ -78,28 +81,7 @@ struct SmartScanChecklist: View {
                 .accessibilityElement(children: .combine)
             }
         }
-        .frame(maxWidth: 640)
+        .frame(maxWidth: 720)
         .animation(.snappy, value: states)
-    }
-}
-
-/// Placeholder card with shimmering bars, shown until a step's real result is ready.
-struct SkeletonResultCard: View {
-    let tint: Color
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SkeletonBar(width: 90, height: 14)
-            SkeletonBar(width: 150, height: 30)
-            SkeletonBar(height: 11)
-            SkeletonBar(width: 120, height: 11)
-            Spacer(minLength: 0)
-            SkeletonBar(width: 110, height: 26)
-        }
-        .padding(18)
-        .frame(height: 210)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(tint.opacity(0.2)))
-        .shimmering()
     }
 }

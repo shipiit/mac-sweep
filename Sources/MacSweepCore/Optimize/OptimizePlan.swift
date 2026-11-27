@@ -2,22 +2,26 @@ import Foundation
 
 /// The clean-up steps Smart Scan can run, in the order they execute.
 public enum OptimizeStep: String, CaseIterable, Sendable, Identifiable {
-    case systemJunk, trashBins, maintenance, flushDNSAndRAM
+    case systemJunk, appCaches, browserCopies, sessionExtras, trashBins, maintenance, flushDNSAndRAM, hardening
 
     public var id: String { rawValue }
 
     public var title: String {
         switch self {
         case .systemJunk: "System Junk"
+        case .appCaches: "Hidden App Caches"
+        case .browserCopies: "Leftover Browser Copies"
+        case .sessionExtras: "AI Session Extras"
         case .trashBins: "Trash Bins"
         case .maintenance: "Run Maintenance Scripts"
         case .flushDNSAndRAM: "Flush DNS Cache & Free Up RAM"
+        case .hardening: "Security Settings"
         }
     }
 
-    public var requiresAdmin: Bool { self == .flushDNSAndRAM }
-    /// Trash emptying can't be undone; junk goes to the Trash first, so it can.
-    public var isPermanent: Bool { self == .trashBins }
+    public var requiresAdmin: Bool { self == .flushDNSAndRAM || self == .hardening }
+    /// Trash emptying and browser copies can't be undone; everything else goes to the Trash first.
+    public var isPermanent: Bool { self == .trashBins || self == .browserCopies }
 }
 
 public enum OptimizeStepState: Sendable, Equatable {

@@ -9,7 +9,7 @@ struct SmartScanView: View {
     @State private var finishedAt: Date?
     @State private var states: [SmartScanStep: StepState] = [:]
     @State private var runner = OptimizeRunner()
-    @State private var enabledSteps: Set<OptimizeStep> = [.systemJunk, .maintenance]
+    @State private var enabledSteps: Set<OptimizeStep> = []
     @State private var trashSize: UInt64 = 0
 
     var body: some View {
@@ -20,17 +20,14 @@ struct SmartScanView: View {
                         runner.reset()
                         run()
                     }
-                } else if !isRunning && finishedAt == nil {
+                } else if isRunning {
+                    hero
+                    SmartScanChecklist(states: states)
+                } else if finishedAt == nil {
                     SmartScanHome(onScan: run)
                 } else {
-                    hero
-                    if isRunning || finishedAt != nil { SmartScanChecklist(states: states) }
-                    if finishedAt != nil && !isRunning {
-                        OptimizeReviewCard(enabled: $enabledSteps, junkSize: app.cleanup.total(.safe), trashSize: trashSize) {
-                            Task { await runner.run(enabledSteps, app: app) }
-                        }
-                    }
-                    if isRunning || finishedAt != nil || app.disk.result != nil { results }
+                    SmartFindingsCard(findings: SmartFindings.build(scanInput), steps: $enabledSteps,
+                                      onFix: { Task { await runner.run(enabledSteps, app: app) } }, onScanAgain: run)
                 }
             }
             .padding(30)
@@ -72,47 +69,31 @@ struct SmartScanView: View {
         }
     }
 
-    private var results: some View {
-        let advice = Advisor.advise(app.advisorInput)
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 14)], spacing: 14) {
-            if isPending(.junk) { SkeletonResultCard(tint: .green) } else {
-            ResultCard(title: "Cleanup", symbol: "trash", tint: .green,
-                       headline: Format.bytes(app.cleanup.total(.safe)),
-                       detail: "safe to remove · \(Format.bytes(app.cleanup.total(.review))) to review",
-                       action: ("Review & Clean", {
-                           app.cleanup.selectSafe()
-                           app.section = .storage
-                       }))
-            }
-            if isPending(.security) { SkeletonResultCard(tint: .indigo) } else {
-            ResultCard(title: "Protection", symbol: "checkmark.shield", tint: .indigo,
-                       headline: "\(app.security.score)%",
-                       detail: app.security.highFindings == 0 && app.security.protectionsOff == 0
-                           ? "No threats found" : "\(app.security.highFindings) to review · \(app.security.protectionsOff) protections off",
-                       action: ("Review", { app.section = .security }))
-            }
-            if isPending(.speed) { SkeletonResultCard(tint: .orange) } else {
-            ResultCard(title: "Speed", symbol: "hare", tint: .orange,
-                       headline: advice.isEmpty ? "All good" : "\(advice.count) tips",
-                       detail: advice.first?.title ?? "Nothing slowing your Mac down",
-                       action: ("Optimize", { app.section = .optimization }))
-            }
-            if isPending(.apps) { SkeletonResultCard(tint: .blue) } else {
-            ResultCard(title: "Applications", symbol: "arrow.down.app", tint: .blue,
-                       headline: app.updates.lastChecked == nil ? "Not checked" : app.updates.updates.count == 1 ? "1 update" : "\(app.updates.updates.count) updates",
-                       detail: app.apps.orphans.isEmpty ? "No leftovers from deleted apps"
-                           : "\(app.apps.orphans.count) leftovers from deleted apps",
-                       action: ("Manage", { app.section = app.updates.updates.isEmpty ? .uninstaller : .updater }))
-            }
-        }
-        .frame(maxWidth: 1100)
-        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: states)
-    }
-
-    private func isPending(_ step: SmartScanStep) -> Bool {
-        guard isRunning else { return false }
-        if case .done = states[step] { return false }
-        return true
+    /// Everything the scan measured, from each feature's own model.
+    private var scanInput: SmartScanInput {
+        let hidden = HiddenSpaceModel.shared, hardening = HardeningModel.shared
+        let patches = SecurityPatches.ranked(app.updates.updates)
+        var input = SmartScanInput()
+        input.safeJunk = app.cleanup.total(.safe)
+        input.reviewJunk = app.cleanup.total(.review)
+        input.trash = trashSize
+        let closedAppParts = hidden.appData.filter { !hidden.isAppRunning($0.app) }.flatMap(\.removable)
+        input.appCaches = closedAppParts.filter { $0.kind == .cache }.reduce(0) { $0 + $1.size }
+        input.sandboxes = hidden.removableParts.filter { $0.kind == .rebuildable }.reduce(0) { $0 + $1.size }
+        input.browserCopies = hidden.clonesSize
+        let unused = hidden.databases.filter { $0.kind == .unreferenced || $0.kind == .test }
+        input.unusedDatabases = unused.reduce(0) { $0 + $1.size }
+        input.unusedDatabaseCount = unused.count
+        input.stoppedServers = hidden.dataFolders.filter { !$0.isRunning }.reduce(0) { $0 + $1.size }
+        input.sessionExtras = AISessionsModel.shared.sessions.filter { !$0.isActive() }.reduce(0) { $0 + $1.extrasSize }
+        input.fixableSettings = hardening.failing.filter { if case .admin = $0.fix { true } else { false } }.map(\.title)
+        input.manualSettings = hardening.failing.filter { if case .admin = $0.fix { false } else { true } }.map(\.title)
+        input.suspiciousItems = app.security.highFindings
+        input.securityUpdates = patches.filter { $0.severity == .high }.map(\.update.name)
+        input.otherUpdates = patches.filter { $0.severity != .high }.count
+        input.speedTips = Advisor.advise(app.advisorInput).count
+        input.leftovers = app.apps.orphans.count
+        return input
     }
 
     private func run() {
@@ -125,10 +106,19 @@ struct SmartScanView: View {
             await app.cleanup.quickScan()
             states[.junk] = .done("\(Format.bytes(app.cleanup.total(.safe))) safe to remove")
 
+            step = "Looking outside your home folder…"
+            states[.hidden] = .running("Apps' hidden data, databases, browser copies and AI sessions…")
+            async let hidden: Void = HiddenSpaceModel.shared.refresh()
+            async let sessions: Void = AISessionsModel.shared.refresh()
+            _ = await (hidden, sessions)
+            states[.hidden] = .done("\(Format.bytes(HiddenSpaceModel.shared.reclaimableAppData)) of app data · \(Format.bytes(AISessionsModel.shared.extrasSize)) of session extras")
+
             step = "Checking security…"
-            states[.security] = .running("Startup items, running programs, browser extensions…")
-            await app.security.run()
-            states[.security] = .done("\(app.security.checkedItems) items checked · score \(app.security.score)%")
+            states[.security] = .running("Startup items, running programs, extensions and security settings…")
+            async let audit: Void = app.security.run()
+            async let hardening: Void = HardeningModel.shared.refresh()
+            _ = await (audit, hardening)
+            states[.security] = .done("\(app.security.checkedItems) items checked · hardening \(HardeningModel.shared.score)/100")
 
             step = "Checking speed…"
             states[.speed] = .running("Memory, CPU, login items…")
@@ -142,32 +132,9 @@ struct SmartScanView: View {
             _ = await (updates, apps)
             states[.apps] = .done("\(app.apps.apps.count) apps · \(app.updates.updates.count) updates · \(app.apps.orphans.count) leftovers")
             trashSize = await Task.detached(priority: .utility) { TrashBins.list().reduce(0) { $0 + $1.size } }.value
+            enabledSteps = SmartFindings.defaultSteps(SmartFindings.build(scanInput)).union([.maintenance])
             finishedAt = Date()
             isRunning = false
         }
-    }
-}
-
-private struct ResultCard: View {
-    let title: String
-    let symbol: String
-    let tint: Color
-    let headline: String
-    let detail: String
-    let action: (title: String, run: () -> Void)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(title, systemImage: symbol).font(.headline).foregroundStyle(tint)
-            Text(headline).font(.system(size: 30, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.6)
-            Text(detail).foregroundStyle(.secondary).lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
-            Button(action.title, action: action.run).buttonStyle(.borderedProminent).tint(tint)
-        }
-        .padding(18)
-        .frame(height: 210)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(tint.opacity(0.25)))
-        .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
     }
 }

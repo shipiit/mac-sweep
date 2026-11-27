@@ -140,6 +140,9 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     case browserProfiles = "Browser Profiles"
     case hiddenSpace = "Hidden Space"
     case aiSessions = "AI Sessions"
+    case hardening = "Hardening"
+    case patcher = "Security Patcher"
+    case dnsShield = "DNS Shield"
     case startupGuard = "Startup Guard"
     case memoryGuard = "Memory Guard"
     case timeline = "Timeline"
@@ -167,6 +170,9 @@ enum SidebarSection: String, CaseIterable, Identifiable {
         case .browserProfiles: "person.crop.rectangle.stack"
         case .hiddenSpace: "externaldrive.badge.questionmark"
         case .aiSessions: "bubble.left.and.text.bubble.right"
+        case .hardening: "lock.shield"
+        case .patcher: "bandage"
+        case .dnsShield: "shield.lefthalf.filled"
         case .startupGuard: "lock.shield"
         case .memoryGuard: "memorychip.fill"
         case .timeline: "chart.xyaxis.line"
@@ -192,7 +198,7 @@ enum SidebarSection: String, CaseIterable, Identifiable {
     static let groups: [(title: String, sections: [SidebarSection])] = [
         ("", [.smartScan, .overview, .ai, .ports]),
         ("Cleanup", [.storage, .hiddenSpace, .files, .aiSessions, .duplicates, .browserProfiles, .privacy, .mail, .trash, .shredder]),
-        ("Protection", [.malware, .security, .permissions, .network, .sharing, .backups, .extensions]),
+        ("Protection", [.malware, .security, .hardening, .patcher, .dnsShield, .permissions, .network, .sharing, .backups, .extensions]),
         ("Performance", [.processes, .memoryGuard, .optimization, .maintenance, .startup, .startupGuard]),
         ("Developer", [.developer, .gitSlimming]),
         ("Applications", [.uninstaller, .appFootprint, .updater, .usage]),

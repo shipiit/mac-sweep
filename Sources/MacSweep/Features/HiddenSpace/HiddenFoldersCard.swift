@@ -3,14 +3,16 @@ import SwiftUI
 
 /// Database data folders under Homebrew, including servers that aren't running (their data still takes space).
 struct DataFoldersCard: View {
-    let folders: [DatabaseDataFolder]
+    let model: HiddenSpaceModel
+    @State private var pending: DatabaseDataFolder?
 
     var body: some View {
+        let folders = model.dataFolders
         if !folders.isEmpty {
             Card {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionHeader(title: "Database data folders",
-                                  subtitle: "A stopped server's data still takes space. If you no longer use an old version, back up what you need, then uninstall it with brew.")
+                                  subtitle: "A stopped server's data still takes space. If you no longer use an old version, you can move its data to the Trash here.")
                     ForEach(folders) { folder in
                         HStack {
                             Image(systemName: "cylinder.split.1x2").foregroundStyle(.secondary).accessibilityHidden(true)
@@ -22,10 +24,18 @@ struct DataFoldersCard: View {
                             Label(folder.isRunning ? "Running" : "Stopped", systemImage: folder.isRunning ? "circle.fill" : "circle")
                                 .font(.caption).foregroundStyle(folder.isRunning ? .green : .secondary)
                             Text(Format.bytes(folder.size)).font(.callout.monospacedDigit()).frame(width: 80, alignment: .trailing)
+                            if !folder.isRunning { Button("Move to Trash…") { pending = folder }.disabled(model.busy != nil) }
                             Button("Reveal", systemImage: "folder") { FileActions.reveal(folder.path) }.labelStyle(.iconOnly).buttonStyle(.borderless)
                         }
                     }
                 }
+            }
+            .confirmationDialog("Move \(pending?.name ?? "this folder") to the Trash?",
+                                isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }), presenting: pending) { folder in
+                Button("Move \(Format.bytes(folder.size)) to Trash") { Task { await model.trashDataFolder(folder) } }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("Every database stored by this server version goes with it. MacSweep can't list them while the server is stopped, so start it first if you're not sure what's inside. You can put the folder back until you empty the Trash.")
             }
         }
     }
@@ -69,8 +79,9 @@ struct HiddenFoldersCard: View {
                         }
                         if expanded == folder.path {
                             VStack(alignment: .leading, spacing: 3) {
-                                Text(folder.summary ?? "No description for this folder yet. Reveal it in Finder to see what's inside.")
+                                Text(folder.summary ?? "No description for this folder yet.")
                                 if let ifDeleted = folder.ifDeleted { Text("If deleted: " + ifDeleted).foregroundStyle(.secondary) }
+                                FolderDrillDown(path: folder.path, model: model).padding(.top, 4)
                             }
                             .font(.caption).padding(.leading, 22)
                         }

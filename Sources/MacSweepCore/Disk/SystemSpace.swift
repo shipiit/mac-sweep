@@ -85,6 +85,20 @@ public enum SystemSpace {
         ["/opt/homebrew", "/usr/local"].first { FileManager.default.fileExists(atPath: $0 + "/Cellar") }
     }
 
+    /// The folders a bucket is made of, so its contents can be listed.
+    public static func roots(for kind: SystemSpaceBucket.Kind, brewPrefix: String? = homebrewPrefix(), tempRoot: String? = CodeSignClones.userTempRoot()) -> [String] {
+        switch kind {
+        case .applications: ["/Applications"]
+        case .homebrew: brewPrefix.map { [$0 + "/Cellar", $0 + "/Caskroom"] } ?? []
+        case .databases: brewPrefix.map { [$0 + "/var"] } ?? []
+        case .simulatorRuntimes: ["/Library/Developer/CoreSimulator"]
+        case .tempFiles: tempRoot.map { [$0 + "/T", $0 + "/C"] } ?? []
+        case .browserCopies: tempRoot.map { [$0 + "/X"] } ?? []
+        case .swap: ["/private/var/vm"]
+        case .updateSnapshots: []
+        }
+    }
+
     /// Measures everything outside home. Slow parts (Applications, Homebrew) run in parallel.
     public static func measure(runtimesSize: UInt64, clones: [CodeSignClone], measure: @escaping @Sendable (String) -> UInt64? = { DiskScanner.measure($0) }) async -> [SystemSpaceBucket] {
         let brew = homebrewPrefix()

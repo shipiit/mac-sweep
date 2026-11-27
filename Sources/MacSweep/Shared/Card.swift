@@ -20,20 +20,24 @@ struct StatTile: View {
     var detail: String? = nil
     var dot: Color? = nil
     var detailColor: Color = .secondary
+    /// Shows a placeholder instead of a figure that hasn't been measured yet.
+    var isLoading = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
                 if let dot { Circle().fill(dot).frame(width: 7, height: 7).accessibilityHidden(true) }
-                Text(title).font(.callout).foregroundStyle(.secondary)
+                Text(title).font(.callout).foregroundStyle(.secondary).lineLimit(1)
             }
-            Text(value)
-                .font(.system(size: 24, weight: .semibold, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text(detail ?? " ")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(detailColor)
+            if isLoading {
+                SkeletonBar(width: 96, height: 22).shimmering().padding(.vertical, 4)
+            } else {
+                FigureText(value: value)
+            }
+            Text(isLoading ? "measuring…" : detail ?? " ")
+                .font(.caption)
+                .monospacedDigit()
+                .foregroundStyle(isLoading ? .secondary : detailColor)
                 .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
